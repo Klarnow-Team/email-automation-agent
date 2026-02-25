@@ -58,20 +58,22 @@ def send_email(
 
 
 def send_batch(emails: List[dict]) -> Optional[dict]:
-    """Send batch of emails. Each item: { "to": str, "subject": str, "html": str }. Returns Resend batch response or None."""
+    """Send batch of emails. Each item: { "to": str, "subject": str, "html": str, "text": str (optional) }. Returns Resend batch response or None."""
     if not settings.resend_api_key:
         logger.warning("RESEND_API_KEY not set; skipping batch send")
         return None
     from_addr = settings.resend_from_email
-    params_list = [
-        {
+    params_list = []
+    for e in emails:
+        p = {
             "from": from_addr,
             "to": _apply_sandbox_redirect(from_addr, e["to"]),
             "subject": e["subject"],
             "html": e["html"],
         }
-        for e in emails
-    ]
+        if e.get("text") is not None:
+            p["text"] = e["text"]
+        params_list.append(p)
     try:
         result = resend.Batch.send(params_list)
         return result

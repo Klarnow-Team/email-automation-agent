@@ -21,6 +21,17 @@ class Settings(BaseSettings):
     # Serve frontend static (set False when running Next.js in dev)
     serve_static: bool = True
 
+    # Tracking (open/click) — base URL for tracking links in emails (e.g. https://api.example.com or http://localhost:8000)
+    tracking_base_url: str = "http://localhost:8000"
+    # Secret for signing tracking URLs (set in production to prevent fake events)
+    tracking_secret: str = "change-me-in-production"
+
+    # Google Calendar OAuth (for calendar sync / busy detection)
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    # Redirect URI for OAuth callback (e.g. http://localhost:8000/api/calendar/callback)
+    google_redirect_uri: str = ""
+
 
 def get_settings() -> Settings:
     return Settings()

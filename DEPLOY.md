@@ -1,4 +1,4 @@
-# Deploy Email Auto Agent
+# Deploy Klarnow mailing tool
 
 This guide covers deploying the app so the dashboard and API are available at a single URL.
 

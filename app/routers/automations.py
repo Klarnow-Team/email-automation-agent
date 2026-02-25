@@ -76,6 +76,18 @@ def get_automation(automation_id: int, db: Session = Depends(get_db)):
     return _automation_to_response(automation)
 
 
+@router.post("/{automation_id}/resume", response_model=AutomationResponse)
+def resume_automation(automation_id: int, db: Session = Depends(get_db)):
+    """Set automation to active (resume)."""
+    automation = db.query(Automation).filter(Automation.id == automation_id).first()
+    if not automation:
+        raise HTTPException(status_code=404, detail="Automation not found")
+    automation.is_active = 1
+    db.commit()
+    db.refresh(automation)
+    return _automation_to_response(automation)
+
+
 @router.patch("/{automation_id}", response_model=AutomationResponse)
 def update_automation(automation_id: int, body: AutomationUpdate, db: Session = Depends(get_db)):
     automation = db.query(Automation).filter(Automation.id == automation_id).first()
@@ -99,6 +111,16 @@ def update_automation(automation_id: int, body: AutomationUpdate, db: Session = 
     db.commit()
     db.refresh(automation)
     return _automation_to_response(automation)
+
+
+@router.delete("/{automation_id}", status_code=204)
+def delete_automation(automation_id: int, db: Session = Depends(get_db)):
+    automation = db.query(Automation).filter(Automation.id == automation_id).first()
+    if not automation:
+        raise HTTPException(status_code=404, detail="Automation not found")
+    db.delete(automation)
+    db.commit()
+    return None
 
 
 @router.post("/{automation_id}/trigger")
