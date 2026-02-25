@@ -8,40 +8,14 @@ const CURSOR_BLINK_MS = 500;
 const HOLD_AFTER_TYPING_MS = 700;
 const FADE_OUT_MS = 450;
 
-/* Logo: three angular arms, V-split ends (brand mark) */
-function LogoIcon({ className }: { className?: string }) {
+function PreloaderLogo({ className }: { className?: string }) {
   return (
-    <svg
+    <img
+      src="/dark-klarnow-logo.svg"
+      alt=""
       className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
       aria-hidden
-    >
-      <path
-        d="M12 12 L12 2 L10 5 L12 2 L14 5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 12 L12 2 L10 5 L12 2 L14 5"
-        transform="rotate(120 12 12)"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 12 L12 2 L10 5 L12 2 L14 5"
-        transform="rotate(240 12 12)"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    />
   );
 }
 
@@ -91,7 +65,7 @@ export function Preloader() {
     >
       <div className="preloader-inner">
         <div className="preloader-logo-wrap">
-          <LogoIcon className="preloader-logo" />
+          <PreloaderLogo className="preloader-logo" />
         </div>
         <span className="preloader-word">
           {WORD.slice(0, length)}

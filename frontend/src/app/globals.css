@@ -145,8 +145,22 @@ body[data-sidebar-collapsed="true"] .main-with-sidebar {
   transition: background-color 0.2s var(--ease-smooth), color 0.2s var(--ease-smooth);
 }
 .sidebar-logo:hover {
-  background: var(--accent-hover);
-  color: var(--on-accent);
+  background: var(--surface-hover);
+}
+.sidebar-logo-icon-light {
+  display: none;
+}
+[data-theme="dark"] .sidebar-logo-icon-light {
+  display: block;
+}
+.sidebar-logo-icon-dark {
+  display: none;
+}
+[data-theme="light"] .sidebar-logo-icon-dark {
+  display: block;
+}
+[data-theme="dark"] .sidebar-wordmark {
+  filter: invert(1);
 }
 .sidebar-link {
   transition: background-color 0.15s var(--ease-smooth), color 0.15s var(--ease-smooth);
@@ -854,6 +868,33 @@ body::after {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+}
+.dashboard-hero-logo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+}
+.dashboard-hero-logo img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.dashboard-hero-logo-light {
+  display: none;
+}
+[data-theme="dark"] .dashboard-hero-logo-light {
+  display: block;
+}
+.dashboard-hero-logo-dark {
+  display: none;
+}
+[data-theme="light"] .dashboard-hero-logo-dark {
+  display: block;
 }
 .dashboard-hero-title {
   font-family: "Syne", system-ui, sans-serif;
@@ -1639,7 +1680,7 @@ select.input-glass:focus,
 .preloader-logo {
   width: 3.5rem;
   height: 3.5rem;
-  color: var(--accent);
+  object-fit: contain;
 }
 .preloader-word {
   font-family: "Archivo Black", sans-serif;

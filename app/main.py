@@ -2,11 +2,11 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
-from app.routers import subscribers, campaigns, automations, dashboard, workers, webhooks, segments, event_types, bookings, team_members, booking_profile, calendar, public_booking, tracking, audit, groups, tags, suppression, forms
+from app.routers import subscribers, campaigns, automations, dashboard, workers, webhooks, segments, event_types, bookings, team_members, booking_profile, calendar, public_booking, tracking, audit, groups, tags, suppression, forms, unsubscribe
 
 settings = get_settings()
 app = FastAPI(title="Klarnow mailing tool", version="0.1.0")
@@ -40,6 +40,7 @@ app.include_router(calendar.router, prefix="/api/calendar", tags=["calendar"])
 app.include_router(public_booking.router, prefix="/api/public", tags=["public-booking"])
 app.include_router(audit.router, prefix="/api/audit-logs", tags=["audit"])
 app.include_router(tracking.router, tags=["tracking"])
+app.include_router(unsubscribe.router, prefix="/api", tags=["unsubscribe"])
 
 
 # Uploaded campaign images (create dir and mount before other routes that might catch /uploads)
@@ -55,6 +56,56 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# Unsubscribe confirmation page (always served so redirect from API works; UI-friendly)
+_UNSUBSCRIBE_PAGE_STYLE = """
+* { box-sizing: border-box; }
+body { margin: 0; padding: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; font-size: 16px; line-height: 1.5;
+  background: #0a0a0a; color: #f0eef4; }
+.card { max-width: 28rem; width: 100%; margin: 1.5rem; padding: 2.5rem; border-radius: 1rem;
+  background: #111; border: 1px solid rgba(255,255,255,0.08); text-align: center; }
+.card.success { border-color: rgba(157, 140, 249, 0.3); }
+h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.5rem; letter-spacing: -0.02em; }
+p { color: #9a96a3; margin: 0 0 1.5rem; }
+a { color: #9d8cf9; text-decoration: none; font-weight: 500; }
+a:hover { text-decoration: underline; }
+.btn { display: inline-block; padding: 0.75rem 1.5rem; margin-top: 0.5rem; border-radius: 0.5rem;
+  background: #9d8cf9; color: #fff; font-weight: 600; font-size: 0.9375rem; }
+.btn:hover { background: #b5a7fa; text-decoration: none; }
+"""
+
+
+def _unsubscribe_html(done: bool) -> str:
+    if done:
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Unsubscribed – Klarnow</title><style>{_UNSUBSCRIBE_PAGE_STYLE}</style></head>
+<body>
+  <div class="card success">
+    <h1>You're unsubscribed</h1>
+    <p>You won't receive further campaign emails from this list. If you change your mind, you can sign up again.</p>
+    <a href="/" class="btn">Back to home</a>
+  </div>
+</body>
+</html>"""
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Unsubscribe – Klarnow</title><style>{_UNSUBSCRIBE_PAGE_STYLE}</style></head>
+<body>
+  <div class="card">
+    <h1>Unsubscribe</h1>
+    <p>Use the unsubscribe link in one of our emails to stop receiving campaigns. If you arrived here by mistake, <a href="/">go back to the app</a>.</p>
+  </div>
+</body>
+</html>"""
+
+
+@app.get("/unsubscribe", response_class=HTMLResponse)
+def unsubscribe_page(done: int = 0):
+    """Serve a friendly unsubscribe confirmation page (so redirect from API always lands on UI)."""
+    return HTMLResponse(_unsubscribe_html(done=done == 1))
 
 
 # Serve frontend static files in production (when frontend/out exists)
@@ -107,6 +158,10 @@ if settings.serve_static and _frontend_out.exists():
     def _forms():
         return _serve_page("forms")
 
+    @app.get("/unsubscribe")
+    def _unsubscribe():
+        return _serve_page("unsubscribe")
+
     @app.head("/campaigns")
     def _campaigns_head():
         return _serve_page("campaigns")
@@ -146,5 +201,9 @@ if settings.serve_static and _frontend_out.exists():
     @app.head("/forms")
     def _forms_head():
         return _serve_page("forms")
+
+    @app.head("/unsubscribe")
+    def _unsubscribe_head():
+        return _serve_page("unsubscribe")
 
     app.mount("/", StaticFiles(directory=str(_frontend_out), html=True), name="frontend")

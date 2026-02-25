@@ -195,9 +195,15 @@ export default function DashboardPage() {
       {/* Hero — welcome + live */}
       <section className="dashboard-hero">
         <div className="dashboard-hero-inner">
-          <div>
-            <h2 className="dashboard-hero-title">Welcome back</h2>
+          <div className="flex items-center gap-4">
+            <span className="dashboard-hero-logo shrink-0">
+              <img src="/light-klarnow-logo.svg" alt="" className="dashboard-hero-logo-light" aria-hidden />
+              <img src="/dark-klarnow-logo.svg" alt="" className="dashboard-hero-logo-dark" aria-hidden />
+            </span>
+            <div>
+              <h2 className="dashboard-hero-title">Welcome back</h2>
             <p className="dashboard-hero-subtitle">Here’s what’s happening across your account.</p>
+            </div>
           </div>
           <span className="dashboard-live" aria-live="polite">
             <span className="dashboard-live-dot" aria-hidden />

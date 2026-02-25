@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     tracking_base_url: str = "http://localhost:8000"
     # Secret for signing tracking URLs (set in production to prevent fake events)
     tracking_secret: str = "change-me-in-production"
+    # Frontend app URL (for unsubscribe redirect and email logo). When set, unsubscribe redirects here so users see the app's confirmation page. If unset, tracking_base_url is used.
+    frontend_base_url: str = ""
 
     # Google Calendar OAuth (for calendar sync / busy detection)
     google_client_id: str = ""

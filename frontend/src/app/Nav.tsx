@@ -233,20 +233,19 @@ export function Nav() {
           <Link
             href="/"
             className={`sidebar-logo flex items-center rounded-lg py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-(--surface) ${
-              isCollapsed ? "justify-center p-0" : "gap-2.5 pl-2.5 pr-2.5 min-w-0 overflow-hidden"
+              isCollapsed ? "justify-center p-0 w-fit" : "gap-2.5 pl-2.5 pr-2.5 min-w-0 overflow-hidden"
             } max-md:justify-center max-md:px-2`}
-            title="Klarnow mailing tool"
+            title="Klarnow"
           >
-            <span className="sidebar-logo-mark flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-(--accent) text-sm font-semibold text-on-accent">
-              K
+            <span className={`sidebar-logo-mark shrink-0 flex items-center justify-center rounded-lg overflow-hidden ${isCollapsed ? "h-8 w-8" : "h-8 w-8"}`}>
+              <img src="/light-klarnow-logo.svg" alt="" className="sidebar-logo-icon sidebar-logo-icon-light h-full w-full object-contain" aria-hidden />
+              <img src="/dark-klarnow-logo.svg" alt="" className="sidebar-logo-icon sidebar-logo-icon-dark h-full w-full object-contain" aria-hidden />
             </span>
-            <span
-              className={`sidebar-label font-display text-[15px] font-semibold tracking-tight text-foreground whitespace-nowrap ${
-                isCollapsed ? "w-0 overflow-hidden opacity-0 ml-0" : "overflow-hidden max-md:sr-only ml-0"
-              }`}
-            >
-              Klarnow mailing tool
-            </span>
+            <img
+              src="/klarnow-header-logo.svg"
+              alt="Klarnow"
+              className={`sidebar-wordmark shrink-0 h-[18px] w-auto object-contain max-md:sr-only ${isCollapsed ? "absolute opacity-0 pointer-events-none w-0 h-0 overflow-hidden" : "opacity-100"}`}
+            />
           </Link>
         </div>
 
@@ -275,7 +274,7 @@ export function Nav() {
                         <Link
                           href={href}
                           title={label}
-                          className="flex items-center gap-2.5 min-w-0 flex-1"
+                          className={`flex items-center min-w-0 ${isCollapsed ? "justify-center" : "gap-2.5 flex-1"}`}
                         >
                           {pathname === "/bookings" && !isCollapsed && (
                             <span className="sidebar-indicator absolute left-0 top-1/2 -translate-y-1/2 h-5" aria-hidden />

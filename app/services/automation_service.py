@@ -10,6 +10,9 @@ from app.models.tag import SubscriberTag
 from app.services.resend_service import send_email
 from app.services.event_bus import emit as event_emit
 from app.services.activity_service import log_activity
+from app.services.email_template import wrap_transactional_html
+from app.services.tracking_utils import build_unsubscribe_url
+from app.config import get_settings
 
 
 def _execute_steps_from(
@@ -40,8 +43,21 @@ def _execute_steps_from(
             return
 
         if step.step_type == "email" and step.payload:
-            subject = step.payload.get("subject", "")
-            html = step.payload.get("html", "")
+            subject_raw = step.payload.get("subject", "")
+            inner_html = step.payload.get("html", "")
+            # Personalize tokens (same as campaigns)
+            repl = {"{{name}}": subscriber.name or "", "{{email}}": subscriber.email or "", "{{id}}": str(subscriber.id)}
+            for token, value in repl.items():
+                subject_raw = subject_raw.replace(token, value)
+                inner_html = (inner_html or "").replace(token, value)
+            subject = subject_raw
+            # Apply same design as campaigns: wrapper + logo + unsubscribe
+            settings = get_settings()
+            base_url = (getattr(settings, "frontend_base_url", None) or settings.tracking_base_url or "").strip().rstrip("/")
+            logo_url = f"{base_url}/light-klarnow-logo.svg" if base_url else ""
+            unsubscribe_url = build_unsubscribe_url(base_url, settings.tracking_secret or "", subscriber.id) if base_url else "#"
+            wrapped = wrap_transactional_html(inner_html, logo_url=logo_url)
+            html = wrapped.replace("{{unsubscribe_url}}", unsubscribe_url)
             try:
                 send_email(to=subscriber.email, subject=subject, html=html)
             except Exception as e:

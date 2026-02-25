@@ -61,18 +61,23 @@ def track_click(
 ):
     """Log a click event and redirect to the destination URL."""
     settings = get_settings()
-    payload = f"click:{c}:{s}:{url}"
-    if not _verify_signature(settings.tracking_secret, payload, sig):
+    # Verify signature: we signed with the original (decoded) destination URL; request may have raw or decoded
+    url_decoded = urllib.parse.unquote(url)
+    for url_for_sig in (url_decoded, url):
+        payload = f"click:{c}:{s}:{url_for_sig}"
+        if _verify_signature(settings.tracking_secret, payload, sig):
+            break
+    else:
         raise HTTPException(status_code=400, detail="Invalid signature")
     event = TrackingEvent(
         campaign_id=c,
         subscriber_id=s,
         event_type="click",
-        payload={"url": url},
+        payload={"url": url_decoded},
     )
     db.add(event)
     db.commit()
-    decoded = urllib.parse.unquote(url)
-    if not decoded.startswith(("http://", "https://")):
-        decoded = "https://" + decoded
-    return RedirectResponse(url=decoded, status_code=302)
+    dest = url_decoded
+    if not dest.startswith(("http://", "https://")):
+        dest = "https://" + dest
+    return RedirectResponse(url=dest, status_code=302)

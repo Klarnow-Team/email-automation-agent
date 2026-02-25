@@ -58,7 +58,7 @@ def send_email(
 
 
 def send_batch(emails: List[dict]) -> Optional[dict]:
-    """Send batch of emails. Each item: { "to": str, "subject": str, "html": str, "text": str (optional) }. Returns Resend batch response or None."""
+    """Send batch of emails. Each item: { "to": str, "subject": str, "html": str, "text": str (optional), "headers": dict (optional) }. Returns Resend batch response or None."""
     if not settings.resend_api_key:
         logger.warning("RESEND_API_KEY not set; skipping batch send")
         return None
@@ -73,6 +73,8 @@ def send_batch(emails: List[dict]) -> Optional[dict]:
         }
         if e.get("text") is not None:
             p["text"] = e["text"]
+        if e.get("headers"):
+            p["headers"] = e["headers"]
         params_list.append(p)
     try:
         result = resend.Batch.send(params_list)

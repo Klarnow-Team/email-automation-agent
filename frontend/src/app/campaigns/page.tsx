@@ -584,9 +584,12 @@ export default function CampaignsPage() {
                 onChange={(e) => setHtmlBody(e.target.value)}
                 rows={10}
                 className="input-glass w-full font-mono text-sm resize-y"
-                placeholder="<p>Hello...</p>"
+                placeholder={'<p>Hello {{name}},</p>\n\n<p>Thanks for subscribing. Here\'s your update...</p>\n\n<p>Best,<br/>The Team</p>'}
                 required
               />
+              <p className="text-xs text-muted-dim mt-1">
+                Use <code className="bg-(--surface-elevated) px-1 rounded">{`{{name}}`}</code>, <code className="bg-(--surface-elevated) px-1 rounded">{`{{email}}`}</code> for personalization. Emails are sent in a themed layout with an <strong>Unsubscribe</strong> link added automatically.
+              </p>
             </div>
             <div>
               <label className="field-label">Plain-text body (optional)</label>
