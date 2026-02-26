@@ -1,4 +1,4 @@
-# Email Auto Agent
+# Klarnow mailing tool
 
 Email automation agent (MailerLite-style MVP) with **Resend** for sending, **FastAPI** backend, and **Next.js** frontend. Features: subscribers, one-off campaigns, and simple automations (e.g. welcome email when a subscriber is added).
 

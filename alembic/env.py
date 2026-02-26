@@ -8,7 +8,27 @@ from alembic.config import Config
 
 from app.config import get_settings
 from app.database import Base
-from app.models import Subscriber, Campaign, CampaignRecipient, Automation, AutomationStep, AutomationRun
+from app.models import (
+    Subscriber,
+    Campaign,
+    CampaignRecipient,
+    Automation,
+    AutomationStep,
+    AutomationRun,
+    PendingAutomationDelay,
+    Event,
+    WebhookSubscription,
+    ActivityLog,
+    SystemAlert,
+    TrackingEvent,
+    SubscriberActivity,
+    Segment,
+    EventType,
+    TeamMember,
+    Booking,
+    Availability,
+    BookingProfile,
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
