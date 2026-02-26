@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { Suspense, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -44,7 +44,7 @@ function stepIndex(step: Step): number {
   return i >= 0 ? i : 0;
 }
 
-export default function BookPage() {
+function BookContent() {
   const searchParams = useSearchParams();
   const slugFromUrl = searchParams.get("slug") ?? "";
 
@@ -649,5 +649,19 @@ export default function BookPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function BookPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="page-root flex min-h-[60vh] items-center justify-center">
+          <div className="spinner" />
+        </div>
+      }
+    >
+      <BookContent />
+    </Suspense>
   );
 }

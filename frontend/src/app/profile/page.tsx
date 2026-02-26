@@ -94,10 +94,15 @@ export default function ProfilePage() {
   };
 
   const updateSocial = (platform: string, url: string) => {
-    setForm((prev) => ({
-      ...prev,
-      social_links: { ...(prev.social_links ?? {}), [platform]: url || undefined },
-    }));
+    setForm((prev) => {
+      const base = { ...(prev.social_links ?? {}) };
+      if (url) {
+        base[platform] = url;
+      } else {
+        delete base[platform];
+      }
+      return { ...prev, social_links: base };
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {

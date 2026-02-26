@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { eventTypesApi, teamMembersApi, type EventType, type TeamMember } from "@/lib/api";
@@ -26,7 +26,7 @@ type MemberRow = { id: number; team_member_id: number; sort_order: number };
 type VacationRow = { id: number; start_date: string; end_date: string; reason: string | null };
 type QuestionRow = { id: number; sort_order: number; question_type: string; label: string; required: boolean; options: string[] | null; show_if: Record<string, unknown> | null };
 
-export default function EditEventTypePage() {
+function EditEventTypeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const idParam = searchParams.get("id");
@@ -733,5 +733,24 @@ export default function EditEventTypePage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function EditEventTypePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="page-root">
+          <header className="page-header">
+            <h1 className="page-title">Edit event type</h1>
+          </header>
+          <div className="flex min-h-[40vh] items-center justify-center">
+            <div className="spinner" />
+          </div>
+        </div>
+      }
+    >
+      <EditEventTypeContent />
+    </Suspense>
   );
 }
