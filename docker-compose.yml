@@ -10,5 +10,15 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/email_auto_agent
+      RESEND_API_KEY: ${RESEND_API_KEY}
+    depends_on:
+      - db
+
 volumes:
   pgdata:

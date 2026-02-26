@@ -27,6 +27,22 @@ docker run -p 3000:3000 -e PORT=3000 -e DATABASE_URL=... -e RESEND_API_KEY=... e
 
 ---
 
+## Deploy with Docker Compose (local / single server)
+
+The `docker-compose.yml` includes both PostgreSQL and the app. From the repo root:
+
+```bash
+# Set RESEND_API_KEY (create a .env file or export it)
+export RESEND_API_KEY=re_xxx
+
+# Build and run both db and app
+docker compose up --build
+```
+
+Open **http://localhost:8000** for the dashboard. The app connects to Postgres at `postgresql://postgres:postgres@db:5432/email_auto_agent`.
+
+---
+
 ## Environment variables
 
 Configure via env vars (no `.env` required in production).
