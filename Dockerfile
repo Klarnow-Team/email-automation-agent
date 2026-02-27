@@ -4,6 +4,8 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+# Use relative URLs so API calls go to same origin (backend serves both frontend + API)
+ENV NEXT_PUBLIC_API_URL=""
 RUN npm run build
 
 # Stage 2: run backend + serve frontend static
