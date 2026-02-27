@@ -158,6 +158,10 @@ if settings.serve_static and _frontend_out.exists():
     def _forms():
         return _serve_page("forms")
 
+    @app.get("/manual")
+    def _manual():
+        return _serve_page("manual")
+
     @app.get("/unsubscribe")
     def _unsubscribe():
         return _serve_page("unsubscribe")
@@ -201,6 +205,10 @@ if settings.serve_static and _frontend_out.exists():
     @app.head("/forms")
     def _forms_head():
         return _serve_page("forms")
+
+    @app.head("/manual")
+    def _manual_head():
+        return _serve_page("manual")
 
     @app.head("/unsubscribe")
     def _unsubscribe_head():
