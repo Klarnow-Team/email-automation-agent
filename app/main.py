@@ -48,8 +48,13 @@ _uploads_dir = Path(__file__).resolve().parent.parent / "uploads"
 _uploads_dir.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(_uploads_dir)), name="uploads")
 
+_frontend_out = Path(__file__).resolve().parent.parent / "frontend" / "out"
+_serving_static = settings.serve_static and _frontend_out.exists()
+
 @app.get("/")
 def root():
+    if _serving_static:
+        return FileResponse(_frontend_out / "index.html", media_type="text/html")
     return {"app": "Klarnow mailing tool", "docs": "/docs", "health": "/health"}
 
 
@@ -109,8 +114,7 @@ def unsubscribe_page(done: int = 0):
 
 
 # Serve frontend static files in production (when frontend/out exists)
-_frontend_out = Path(__file__).resolve().parent.parent / "frontend" / "out"
-if settings.serve_static and _frontend_out.exists():
+if _serving_static:
     # Next.js export: /campaigns, /subscribers, /automations are in root as *.html
     def _serve_page(path: str):
         f = _frontend_out / f"{path}.html"
