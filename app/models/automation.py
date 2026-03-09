@@ -17,6 +17,7 @@ class Automation(Base):
 
     steps = relationship("AutomationStep", back_populates="automation", order_by="AutomationStep.order")
     runs = relationship("AutomationRun", back_populates="automation")
+    versions = relationship("AutomationVersion", back_populates="automation", cascade="all, delete-orphan")
 
 
 class AutomationStep(Base):
@@ -60,3 +61,17 @@ class PendingAutomationDelay(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     run = relationship("AutomationRun", back_populates="pending_delays")
+
+
+class AutomationVersion(Base):
+    __tablename__ = "automation_versions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    automation_id = Column(Integer, ForeignKey("automations.id", ondelete="CASCADE"), nullable=False)
+    version_number = Column(Integer, nullable=False)
+    name = Column(String(255), nullable=False)
+    trigger_type = Column(String(64), nullable=False)
+    steps = Column(JSONB, nullable=False, server_default="[]")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    automation = relationship("Automation", back_populates="versions")

@@ -1,7 +1,13 @@
 from app.database import Base
 from app.models.subscriber import Subscriber
 from app.models.campaign import Campaign, CampaignRecipient
-from app.models.automation import Automation, AutomationStep, AutomationRun, PendingAutomationDelay
+from app.models.automation import (
+    Automation,
+    AutomationStep,
+    AutomationRun,
+    PendingAutomationDelay,
+    AutomationVersion,
+)
 from app.models.event_bus import Event, WebhookSubscription
 from app.models.activity import ActivityLog, SystemAlert
 from app.models.tracking import TrackingEvent, SubscriberActivity
@@ -23,6 +29,7 @@ __all__ = [
     "AutomationStep",
     "AutomationRun",
     "PendingAutomationDelay",
+    "AutomationVersion",
     "Event",
     "WebhookSubscription",
     "ActivityLog",
