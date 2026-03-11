@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { Suspense, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { eventTypesApi, bookingsApi, type EventType, type Booking } from "@/lib/api";
@@ -102,7 +102,7 @@ function gridToSlots(grid: boolean[][]): Slot[] {
   return slots;
 }
 
-export default function AvailabilityPage() {
+function AvailabilityContent() {
   const searchParams = useSearchParams();
   const preselectedId = searchParams.get("event_type");
   const router = useRouter();
@@ -517,5 +517,24 @@ export default function AvailabilityPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AvailabilityPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="page-root">
+          <header className="page-header">
+            <h1 className="page-title">Availability</h1>
+          </header>
+          <div className="flex min-h-[40vh] items-center justify-center">
+            <div className="spinner" />
+          </div>
+        </div>
+      }
+    >
+      <AvailabilityContent />
+    </Suspense>
   );
 }

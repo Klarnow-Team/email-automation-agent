@@ -16,6 +16,7 @@ from app.models import (
     AutomationStep,
     AutomationRun,
     PendingAutomationDelay,
+    AutomationVersion,
     Event,
     WebhookSubscription,
     ActivityLog,

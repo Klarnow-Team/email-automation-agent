@@ -28,6 +28,7 @@ class Campaign(Base):
     ab_html_body_b = Column(Text, nullable=True)
     ab_split_percent = Column(Integer, default=0, nullable=False)  # 0 = no A/B; 50 = 50/50
     ab_winner = Column(String(1), nullable=True)  # 'a' | 'b' | null
+    channel = Column(String(16), default="email", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     recipients = relationship(

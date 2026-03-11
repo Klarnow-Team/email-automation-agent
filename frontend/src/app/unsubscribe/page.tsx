@@ -1,9 +1,10 @@
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-export default function UnsubscribePage() {
+function UnsubscribeContent() {
   const searchParams = useSearchParams();
   const done = searchParams.get("done") === "1";
 
@@ -30,5 +31,22 @@ export default function UnsubscribePage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function UnsubscribePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="page-root">
+          <div className="section-card max-w-lg mx-auto text-center">
+            <div className="animate-pulse h-8 bg-muted/30 rounded w-48 mx-auto mb-4" />
+            <div className="animate-pulse h-4 bg-muted/20 rounded w-full" />
+          </div>
+        </div>
+      }
+    >
+      <UnsubscribeContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { Suspense, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { bookingsApi, calendarApi, eventTypesApi, teamMembersApi, type Booking, type CalendarConnection, type EventType, type TeamMember } from "@/lib/api";
@@ -20,7 +20,7 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true });
 }
 
-export default function BookingsPage() {
+function BookingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -619,5 +619,24 @@ export default function BookingsPage() {
         )}
       </section>
     </div>
+  );
+}
+
+export default function BookingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="page-root">
+          <header className="page-header">
+            <h1 className="page-title">Bookings</h1>
+          </header>
+          <div className="flex min-h-[40vh] items-center justify-center">
+            <div className="spinner" />
+          </div>
+        </div>
+      }
+    >
+      <BookingsContent />
+    </Suspense>
   );
 }

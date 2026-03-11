@@ -18,6 +18,7 @@ class Automation(Base):
 
     steps = relationship("AutomationStep", back_populates="automation", order_by="AutomationStep.order")
     runs = relationship("AutomationRun", back_populates="automation")
+    versions = relationship("AutomationVersion", back_populates="automation", cascade="all, delete-orphan")
 
 
 class AutomationStep(Base):
