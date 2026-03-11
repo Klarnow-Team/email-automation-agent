@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { segmentsApi, type Segment } from "@/lib/api";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
+import { Button, Dropdown, Modal } from "@/components/ui";
 
 export type SegmentRule = {
   field: string;
@@ -38,7 +40,9 @@ const OPS_BY_FIELD: Record<string, { value: string; label: string }[]> = {
 function rulesFromSegment(rules: unknown): SegmentRule[] {
   if (!Array.isArray(rules)) return [];
   return rules
-    .filter((r): r is Record<string, unknown> => r != null && typeof r === "object")
+    .filter(
+      (r): r is Record<string, unknown> => r != null && typeof r === "object",
+    )
     .map((r) => ({
       field: typeof r.field === "string" ? r.field : "status",
       op: typeof r.op === "string" ? r.op : "eq",
@@ -47,7 +51,8 @@ function rulesFromSegment(rules: unknown): SegmentRule[] {
 }
 
 function ruleSummary(rule: SegmentRule): string {
-  const field = RULE_FIELDS.find((f) => f.value === rule.field)?.label ?? rule.field;
+  const field =
+    RULE_FIELDS.find((f) => f.value === rule.field)?.label ?? rule.field;
   const opList = OPS_BY_FIELD[rule.field] ?? OPS_BY_FIELD.status;
   const op = opList.find((o) => o.value === rule.op)?.label ?? rule.op;
   return `${field} ${op} "${rule.value}"`;
@@ -66,20 +71,125 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
+function formatNumber(n: number): string {
+  return n.toLocaleString();
+}
+
+function EntityStatRow({
+  subscriberCount,
+  openRate,
+  clickRate,
+}: {
+  subscriberCount: number;
+  openRate: number | null | undefined;
+  clickRate: number | null | undefined;
+}) {
+  return (
+    <div className="entity-stat-row">
+      <div
+        className="entity-stat-item icon-subscribers"
+        title="Subscribers in this segment"
+      >
+        <span className="entity-stat-item-icon" aria-hidden>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        </span>
+        <span>
+          <span className="entity-stat-item-label">Subscribers</span>{" "}
+          <span className="entity-stat-item-value">
+            {formatNumber(subscriberCount)}
+          </span>
+        </span>
+      </div>
+      <div
+        className="entity-stat-item icon-open"
+        title="Open rate (opens / emails sent)"
+      >
+        <span className="entity-stat-item-icon" aria-hidden>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </span>
+        <span>
+          <span className="entity-stat-item-label">Open</span>{" "}
+          <span className="entity-stat-item-value">
+            {openRate != null ? `${openRate}%` : "—"}
+          </span>
+        </span>
+      </div>
+      <div
+        className="entity-stat-item icon-click"
+        title="Click rate (clicks / emails sent)"
+      >
+        <span className="entity-stat-item-icon" aria-hidden>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M4 4l7.07 17 2.51-7.39L21 11.07z" />
+          </svg>
+        </span>
+        <span>
+          <span className="entity-stat-item-label">Click</span>{" "}
+          <span className="entity-stat-item-value">
+            {clickRate != null ? `${clickRate}%` : "—"}
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function RulePills({ rules }: { rules: SegmentRule[] }) {
   if (!rules.length) return null;
   return (
     <div className="flex flex-wrap items-center gap-1.5 mt-2">
       {rules.map((rule, i) => {
         const full = ruleSummary(rule);
-        const short = rule.value.length > 20 ? `${rule.field} ${rule.op} "${rule.value.slice(0, 18)}…"` : full;
+        const short =
+          rule.value.length > 20
+            ? `${rule.field} ${rule.op} "${rule.value.slice(0, 18)}…"`
+            : full;
         return (
           <span
             key={i}
             className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-(--surface-elevated) text-foreground border border-(--card-border) max-w-full truncate"
             title={full}
           >
-            {rule.field === "status" ? "● " : rule.field === "email" ? "✉ " : "◇ "}
+            {rule.field === "status"
+              ? "● "
+              : rule.field === "email"
+                ? "✉ "
+                : "◇ "}
             {short}
           </span>
         );
@@ -88,7 +198,7 @@ function RulePills({ rules }: { rules: SegmentRule[] }) {
   );
 }
 
-export default function SegmentsPage() {
+export function SegmentsContent() {
   const [list, setList] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,12 +209,18 @@ export default function SegmentsPage() {
   const [rules, setRules] = useState<SegmentRule[]>([]);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<number | null>(null);
   const [matchCount, setMatchCount] = useState<number | null>(null);
   const [matchCountLoading, setMatchCountLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [ruleFilter, setRuleFilter] = useState<"all" | "with_rules" | "all_subscribers">("all");
+  const [ruleFilter, setRuleFilter] = useState<
+    "all" | "with_rules" | "all_subscribers"
+  >("all");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -143,6 +259,25 @@ export default function SegmentsPage() {
     setMatchCount(null);
   };
 
+  const handleDuplicate = (seg: Segment) => {
+    setDuplicatingId(seg.id);
+    setError(null);
+    segmentsApi
+      .create({
+        name: `${seg.name} (copy)`,
+        rules: seg.rules ?? [],
+      })
+      .then(() => {
+        load();
+        setSuccessMessage("Segment duplicated.");
+        setTimeout(() => setSuccessMessage(null), 4000);
+      })
+      .catch((e) =>
+        setError(e instanceof Error ? e.message : "Failed to duplicate"),
+      )
+      .finally(() => setDuplicatingId(null));
+  };
+
   const closeForm = () => {
     setShowForm(false);
     setEditingId(null);
@@ -152,7 +287,10 @@ export default function SegmentsPage() {
   };
 
   const addRule = () => {
-    setRules((prev) => [...prev, { field: "status", op: "eq", value: "active" }]);
+    setRules((prev) => [
+      ...prev,
+      { field: "status", op: "eq", value: "active" },
+    ]);
   };
 
   const removeRule = (index: number) => {
@@ -192,7 +330,11 @@ export default function SegmentsPage() {
     if (!trimmedName) return;
     if (creating || saving) return;
     setError(null);
-    const rulesPayload = rules.map((r) => ({ field: r.field, op: r.op, value: r.value }));
+    const rulesPayload = rules.map((r) => ({
+      field: r.field,
+      op: r.op,
+      value: r.value,
+    }));
 
     if (editingId != null) {
       setSaving(true);
@@ -204,7 +346,9 @@ export default function SegmentsPage() {
           setSuccessMessage("Segment updated.");
           setTimeout(() => setSuccessMessage(null), 4000);
         })
-        .catch((e) => setError(e instanceof Error ? e.message : "Failed to update"))
+        .catch((e) =>
+          setError(e instanceof Error ? e.message : "Failed to update"),
+        )
         .finally(() => setSaving(false));
     } else {
       setCreating(true);
@@ -213,10 +357,14 @@ export default function SegmentsPage() {
         .then(() => {
           closeForm();
           load();
-          setSuccessMessage("Segment created. Use it to target campaigns or automations.");
+          setSuccessMessage(
+            "Segment created. Use it to target campaigns or automations.",
+          );
           setTimeout(() => setSuccessMessage(null), 5000);
         })
-        .catch((e) => setError(e instanceof Error ? e.message : "Failed to create"))
+        .catch((e) =>
+          setError(e instanceof Error ? e.message : "Failed to create"),
+        )
         .finally(() => setCreating(false));
     }
   };
@@ -234,7 +382,9 @@ export default function SegmentsPage() {
         setSuccessMessage(`"${segmentName}" deleted.`);
         setTimeout(() => setSuccessMessage(null), 4000);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to delete"))
+      .catch((e) =>
+        setError(e instanceof Error ? e.message : "Failed to delete"),
+      )
       .finally(() => setDeletingId(null));
   };
 
@@ -253,31 +403,17 @@ export default function SegmentsPage() {
 
   if (loading && list.length === 0) {
     return (
-      <div className="page-root">
-        <header className="page-header">
-          <div>
-            <h1 className="page-title">Segments</h1>
-            <p className="page-subtitle">Define audience segments for targeting campaigns</p>
-          </div>
-        </header>
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="spinner" />
-          <span className="ml-3 text-sm text-muted-dim">Loading segments…</span>
-        </div>
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="spinner" />
+        <span className="ml-3 text-sm text-muted-dim">Loading segments…</span>
       </div>
     );
   }
 
   return (
-    <div className="page-root segments-page">
-      <header className="page-header animate-in">
-        <div>
-          <h1 className="page-title">Segments</h1>
-          <p className="page-subtitle">
-            Define audience segments for targeting campaigns
-          </p>
-        </div>
-        <button
+    <div className="segments-content subscribers-view-content">
+      <div className="subscribers-view-toolbar">
+        <Button
           type="button"
           onClick={() => {
             if (showForm) closeForm();
@@ -288,26 +424,41 @@ export default function SegmentsPage() {
               setShowForm(true);
             }
           }}
-          className="btn-primary"
         >
           {showForm ? "Cancel" : "Create segment"}
-        </button>
-      </header>
+        </Button>
+      </div>
 
       {/* How segments work */}
-      <section className="rounded-xl border border-(--card-border) bg-(--card-bg-subtle) p-4 mb-4">
-        <h2 className="text-sm font-semibold text-foreground mb-2">How segments work</h2>
+      <section className="rounded-xl border border-(--card-border) bg-(--card-bg-subtle) p-4">
+        <h2 className="text-sm font-semibold text-foreground mb-2">
+          How segments work
+        </h2>
         <ul className="text-sm text-muted space-y-1 list-disc list-inside">
-          <li><strong className="text-foreground">Rules</strong> — Filter subscribers by status, email, or name (e.g. status equals &quot;active&quot;, email contains &quot;@company.com&quot;).</li>
-          <li><strong className="text-foreground">All must match</strong> — Multiple rules act as AND: only subscribers matching every rule are included.</li>
-          <li><strong className="text-foreground">Use in campaigns</strong> — When sending a campaign or targeting an automation, you can choose a segment to limit who receives it.</li>
+          <li>
+            <strong className="text-foreground">Rules</strong> — Filter
+            subscribers by status, email, or name (e.g. status equals
+            &quot;active&quot;, email contains &quot;@company.com&quot;).
+          </li>
+          <li>
+            <strong className="text-foreground">All must match</strong> —
+            Multiple rules act as AND: only subscribers matching every rule are
+            included.
+          </li>
+          <li>
+            <strong className="text-foreground">Use in campaigns</strong> — When
+            sending a campaign or targeting an automation, you can choose a
+            segment to limit who receives it.
+          </li>
         </ul>
         <p className="text-xs text-muted-dim mt-3 pt-3 border-t border-(--card-border)">
-          Leave rules empty to include <strong className="text-foreground">all subscribers</strong>. Status values are typically &quot;active&quot; or &quot;inactive&quot;.
+          Leave rules empty to include{" "}
+          <strong className="text-foreground">all subscribers</strong>. Status
+          values are typically &quot;active&quot; or &quot;inactive&quot;.
         </p>
       </section>
 
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="dash-kpi-card">
           <p className="dash-kpi-value text-foreground">
             <AnimatedCounter value={list.length} />
@@ -320,8 +471,25 @@ export default function SegmentsPage() {
         <div className="alert-error animate-in">
           <span>{error}</span>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => { setError(null); load(); }} className="btn-ghost text-sm">Retry</button>
-            <button type="button" onClick={() => setError(null)} className="alert-dismiss" aria-label="Dismiss">Dismiss</button>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={() => {
+                setError(null);
+                load();
+              }}
+            >
+              Retry
+            </Button>
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="alert-dismiss"
+              aria-label="Dismiss"
+            >
+              Dismiss
+            </button>
           </div>
         </div>
       )}
@@ -329,56 +497,53 @@ export default function SegmentsPage() {
       {successMessage && (
         <div className="alert-success animate-in">
           <span>{successMessage}</span>
-          <button type="button" onClick={() => setSuccessMessage(null)} className="alert-dismiss" aria-label="Dismiss">
+          <button
+            type="button"
+            onClick={() => setSuccessMessage(null)}
+            className="alert-dismiss"
+            aria-label="Dismiss"
+          >
             Dismiss
           </button>
         </div>
       )}
 
-      {/* Delete confirm modal */}
-      {deleteConfirm && (
-        <div
-          className="modal-backdrop"
-          onClick={(e) => e.target === e.currentTarget && setDeleteConfirm(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="delete-segment-title"
-        >
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 id="delete-segment-title" className="modal-title">Delete segment</h2>
-              <button type="button" onClick={() => setDeleteConfirm(null)} className="modal-close" aria-label="Close">
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="modal-body">
-              <p className="text-muted">
-                Delete <strong className="text-foreground">{deleteConfirm.name}</strong>? This cannot be undone.
-              </p>
-            </div>
-            <div className="modal-footer">
-              <button type="button" onClick={() => setDeleteConfirm(null)} className="btn-ghost">
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteConfirm}
-                className="btn-danger disabled:opacity-50"
-                disabled={deletingId !== null}
-              >
-                {deletingId !== null ? "Deleting…" : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        title="Delete segment"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDeleteConfirm(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleDeleteConfirm}
+              disabled={deletingId !== null}
+            >
+              {deletingId !== null ? "Deleting…" : "Delete"}
+            </Button>
+          </>
+        }
+      >
+        {deleteConfirm && (
+          <p className="text-[var(--muted)]">
+            Delete{" "}
+            <strong className="text-[var(--foreground)]">
+              {deleteConfirm.name}
+            </strong>
+            ? This cannot be undone.
+          </p>
+        )}
+      </Modal>
 
       {/* Create / Edit form with rule builder */}
       {showForm && (
         <div className="section-card add-card animate-in">
-          <h2 className="section-title">{editingId != null ? "Edit segment" : "Create segment"}</h2>
+          <h2 className="section-title">
+            {editingId != null ? "Edit segment" : "Create segment"}
+          </h2>
           <p className="text-sm text-muted-dim mb-5">
             {editingId != null
               ? "Update the name or rules below. Rules filter which subscribers belong to this segment."
@@ -400,16 +565,24 @@ export default function SegmentsPage() {
             <div>
               <label className="field-label">Rules (all must match)</label>
               <p className="text-xs text-muted-dim mb-3">
-                Status: use &quot;active&quot; or &quot;inactive&quot;. Email and Name support equals, not equals, contains, and starts with.
+                Status: use &quot;active&quot; or &quot;inactive&quot;. Email
+                and Name support equals, not equals, contains, and starts with.
               </p>
               <div className="flex gap-2 mb-3">
-                <button type="button" onClick={addRule} className="btn-ghost py-2 text-sm">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  onClick={addRule}
+                >
                   + Add rule
-                </button>
+                </Button>
               </div>
               <div className="space-y-4">
                 {rules.length === 0 ? (
-                  <p className="text-sm text-muted-dim py-2">No rules — segment will include all subscribers.</p>
+                  <p className="text-sm text-muted-dim py-2">
+                    No rules — segment will include all subscribers.
+                  </p>
                 ) : (
                   rules.map((rule, i) => (
                     <div
@@ -433,12 +606,16 @@ export default function SegmentsPage() {
                           <label className="sr-only">Field</label>
                           <select
                             value={rule.field}
-                            onChange={(e) => updateRule(i, "field", e.target.value)}
+                            onChange={(e) =>
+                              updateRule(i, "field", e.target.value)
+                            }
                             className="input-glass select-glass text-sm min-w-[100px]"
                             aria-label="Field"
                           >
                             {RULE_FIELDS.map((f) => (
-                              <option key={f.value} value={f.value}>{f.label}</option>
+                              <option key={f.value} value={f.value}>
+                                {f.label}
+                              </option>
                             ))}
                           </select>
                         </div>
@@ -446,12 +623,18 @@ export default function SegmentsPage() {
                           <label className="sr-only">Operator</label>
                           <select
                             value={rule.op}
-                            onChange={(e) => updateRule(i, "op", e.target.value)}
+                            onChange={(e) =>
+                              updateRule(i, "op", e.target.value)
+                            }
                             className="input-glass select-glass text-sm min-w-[130px]"
                             aria-label="Operator"
                           >
-                            {(OPS_BY_FIELD[rule.field] ?? OPS_BY_FIELD.status).map((o) => (
-                              <option key={o.value} value={o.value}>{o.label}</option>
+                            {(
+                              OPS_BY_FIELD[rule.field] ?? OPS_BY_FIELD.status
+                            ).map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
                             ))}
                           </select>
                         </div>
@@ -460,9 +643,13 @@ export default function SegmentsPage() {
                           <input
                             type="text"
                             value={rule.value}
-                            onChange={(e) => updateRule(i, "value", e.target.value)}
+                            onChange={(e) =>
+                              updateRule(i, "value", e.target.value)
+                            }
                             className="input-glass w-full text-sm"
-                            placeholder={rule.field === "status" ? "e.g. active" : "Value"}
+                            placeholder={
+                              rule.field === "status" ? "e.g. active" : "Value"
+                            }
                           />
                         </div>
                       </div>
@@ -474,12 +661,17 @@ export default function SegmentsPage() {
 
             {editingId != null && (
               <div className="rounded-lg border border-(--card-border) bg-(--card-bg-subtle) p-3">
-                <p className="text-sm font-medium text-foreground mb-1">Subscribers matching this segment</p>
+                <p className="text-sm font-medium text-foreground mb-1">
+                  Subscribers matching this segment
+                </p>
                 {matchCountLoading ? (
                   <span className="text-sm text-muted-dim">Loading…</span>
                 ) : matchCount !== null ? (
                   <p className="text-sm text-muted-dim">
-                    <span className="font-semibold text-foreground">{matchCount}</span> subscriber{matchCount !== 1 ? "s" : ""} match
+                    <span className="font-semibold text-foreground">
+                      {matchCount}
+                    </span>{" "}
+                    subscriber{matchCount !== 1 ? "s" : ""} match
                     <button
                       type="button"
                       onClick={fetchMatchCount}
@@ -489,23 +681,27 @@ export default function SegmentsPage() {
                     </button>
                   </p>
                 ) : (
-                  <span className="text-sm text-muted-dim">Could not load count.</span>
+                  <span className="text-sm text-muted-dim">
+                    Could not load count.
+                  </span>
                 )}
               </div>
             )}
 
             <div className="flex gap-2">
-              <button
-                type="submit"
-                className="btn-primary"
-                disabled={creating || saving}
-              >
-                {creating ? "Creating…" : saving ? "Saving…" : editingId != null ? "Save changes" : "Create segment"}
-              </button>
+              <Button type="submit" disabled={creating || saving}>
+                {creating
+                  ? "Creating…"
+                  : saving
+                    ? "Saving…"
+                    : editingId != null
+                      ? "Save changes"
+                      : "Create segment"}
+              </Button>
               {editingId != null && (
-                <button type="button" onClick={closeForm} className="btn-ghost">
+                <Button variant="ghost" type="button" onClick={closeForm}>
                   Cancel
-                </button>
+                </Button>
               )}
             </div>
           </form>
@@ -518,8 +714,19 @@ export default function SegmentsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-dim">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
                 </svg>
               </span>
               <input
@@ -538,10 +745,16 @@ export default function SegmentsPage() {
                   type="button"
                   onClick={() => setRuleFilter(s)}
                   className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                    ruleFilter === s ? "bg-(--surface) text-foreground shadow-sm" : "text-muted-dim hover:text-muted"
+                    ruleFilter === s
+                      ? "bg-(--surface) text-foreground shadow-sm"
+                      : "text-muted-dim hover:text-muted"
                   }`}
                 >
-                  {s === "all" ? "All" : s === "with_rules" ? "With rules" : "All subscribers"}
+                  {s === "all"
+                    ? "All"
+                    : s === "with_rules"
+                      ? "With rules"
+                      : "All subscribers"}
                 </button>
               ))}
             </div>
@@ -557,21 +770,33 @@ export default function SegmentsPage() {
           <div className="empty-state-centered">
             <div className="empty-state-icon" aria-hidden>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                />
               </svg>
             </div>
             {list.length === 0 ? (
               <>
                 <p className="font-semibold text-foreground">No segments yet</p>
-                <p className="text-sm text-muted-dim mt-1">Create a segment to target specific audiences in campaigns.</p>
+                <p className="text-sm text-muted-dim mt-1">
+                  Create a segment to target specific audiences in campaigns.
+                </p>
               </>
             ) : (
               <>
                 <p className="font-semibold text-foreground">No matches</p>
-                <p className="text-sm text-muted-dim mt-1">Try a different search or filter.</p>
+                <p className="text-sm text-muted-dim mt-1">
+                  Try a different search or filter.
+                </p>
                 <button
                   type="button"
-                  onClick={() => { setSearchQuery(""); setRuleFilter("all"); }}
+                  onClick={() => {
+                    setSearchQuery("");
+                    setRuleFilter("all");
+                  }}
                   className="btn-ghost mt-3 text-sm"
                 >
                   Clear filters
@@ -584,7 +809,10 @@ export default function SegmentsPage() {
             {filteredList.map((seg) => {
               const segRules = rulesFromSegment(seg.rules);
               return (
-                <div key={seg.id} className="rounded-xl border border-(--card-border) bg-(--surface) p-4">
+                <div
+                  key={seg.id}
+                  className="rounded-xl border border-(--card-border) bg-(--surface) p-4"
+                >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <p className="list-card-title mb-0">{seg.name}</p>
@@ -595,24 +823,62 @@ export default function SegmentsPage() {
                         {" · "}
                         Created {formatDate(seg.created_at)}
                       </p>
+                      <EntityStatRow
+                        subscriberCount={seg.subscriber_count ?? 0}
+                        openRate={seg.open_rate}
+                        clickRate={seg.click_rate}
+                      />
                       <RulePills rules={segRules} />
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(seg)}
-                        className="btn-ghost text-sm text-(--accent) hover:bg-[rgba(var(--accent-rgb),0.12)]"
+                    <div className="flex items-center shrink-0">
+                      <Dropdown
+                        align="right"
+                        trigger={
+                          <button
+                            type="button"
+                            className="flex items-center justify-center w-9 h-9 rounded-lg text-muted hover:text-foreground hover:bg-(--surface-hover) transition-colors"
+                            aria-label="More options"
+                          >
+                            <svg
+                              className="w-5 h-5"
+                              fill="currentColor"
+                              viewBox="0 0 24 24"
+                              aria-hidden
+                            >
+                              <circle cx="12" cy="6" r="1.5" />
+                              <circle cx="12" cy="12" r="1.5" />
+                              <circle cx="12" cy="18" r="1.5" />
+                            </svg>
+                          </button>
+                        }
                       >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteConfirm({ id: seg.id, name: seg.name })}
-                        className="btn-danger text-sm py-1.5 px-2.5"
-                        title="Delete this segment"
-                      >
-                        Delete
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => openEdit(seg)}
+                          className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-(--surface-hover) first:rounded-t-[var(--radius)] last:rounded-b-[var(--radius)]"
+                        >
+                          Rename
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDuplicate(seg)}
+                          disabled={duplicatingId === seg.id}
+                          className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-(--surface-hover) disabled:opacity-50 last:rounded-b-[var(--radius)]"
+                        >
+                          {duplicatingId === seg.id
+                            ? "Duplicating…"
+                            : "Duplicate"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDeleteConfirm({ id: seg.id, name: seg.name })
+                          }
+                          className="w-full text-left px-3 py-2 text-sm text-danger hover:bg-(--danger-muted) last:rounded-b-[var(--radius)]"
+                        >
+                          Delete
+                        </button>
+                      </Dropdown>
                     </div>
                   </div>
                 </div>
@@ -622,5 +888,20 @@ export default function SegmentsPage() {
         )}
       </section>
     </div>
+  );
+}
+
+export default function SegmentsPage() {
+  return (
+    <>
+      <p className="text-sm text-muted mb-2">
+        <Link href="/subscribers" className="text-(--accent) hover:underline">
+          Subscribers
+        </Link>
+        <span className="mx-2">/</span>
+        <span className="text-foreground">Segments</span>
+      </p>
+      <SegmentsContent />
+    </>
   );
 }

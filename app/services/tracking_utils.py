@@ -63,31 +63,39 @@ def inject_tracking_html(
     if not base_url:
         return html
 
-    # 1) Wrap links: replace href="..." with tracking redirect (skip mailto:, tel:, #, and already our tracking domain)
+    # 1) Wrap links: replace href="..." with tracking redirect (skip mailto:, tel:, #, unsubscribe, and already our tracking domain)
     click_base = base_url.rstrip("/").lower()
 
     def replace_href(match: re.Match) -> str:
         full = match.group(0)
         quote_char = match.group(1)
         href = match.group(2)
-        href_stripped = (href or "").strip()
+        # Decode HTML entities so we work with the real URL (e.g. &amp; -> &)
+        href_stripped = (href or "").replace("&amp;", "&").replace("&quot;", '"').strip()
         if (
             not href_stripped
             or href_stripped.startswith(("mailto:", "tel:", "#"))
             or click_base in href_stripped.lower()
+            or "/unsubscribe" in href_stripped.lower()
         ):
             return full
         new_url = build_click_url(base_url, secret, campaign_id, subscriber_id, href_stripped)
         return f"href={quote_char}{_html_escape_url(new_url)}{quote_char}"
 
-    html = re.sub(r"href=([\"'])(.+?)\1", replace_href, html, flags=re.DOTALL | re.IGNORECASE)
+    # Allow optional whitespace around = so we catch href = "..." from some editors
+    html = re.sub(r"href\s*=\s*([\"'])(.+?)\1", replace_href, html, flags=re.DOTALL | re.IGNORECASE)
 
-    # 2) Inject tracking pixel before </body> or at end (escape URL for HTML)
+    # 2) Inject open-tracking pixel: right after <body> so clients load it (many strip or skip images at end)
     pixel_url = build_open_url(base_url, secret, campaign_id, subscriber_id)
-    pixel_img = f'<img src="{_html_escape_url(pixel_url)}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;" />'
-    if "</body>" in html.lower():
-        html = re.sub(r"</body>", f"{pixel_img}</body>", html, flags=re.IGNORECASE, count=1)
+    pixel_img = (
+        f'<img src="{_html_escape_url(pixel_url)}" width="1" height="1" alt="" border="0" '
+        'style="display:block;width:1px;height:1px;min-width:1px;min-height:1px;" />'
+    )
+    if re.search(r"<body[\s>]", html, re.IGNORECASE):
+        html = re.sub(r"(<body[^>]*>)", r"\1" + pixel_img, html, count=1, flags=re.IGNORECASE)
+    elif "</body>" in html.lower():
+        html = re.sub(r"</body>", pixel_img + "</body>", html, flags=re.IGNORECASE, count=1)
     else:
-        html = html + pixel_img
+        html = pixel_img + html
 
     return html

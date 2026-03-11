@@ -13,8 +13,12 @@ class Settings(BaseSettings):
     # Resend
     resend_api_key: str = ""
     resend_from_email: str = "onboarding@resend.dev"
+    # Optional display name for From (e.g. "Goodness"). Person-like names can help Gmail place mail in Primary.
+    resend_from_name: str = ""
     # When set and sending from @resend.dev, all recipients are redirected here (e.g. delivered@resend.dev). Use for local testing.
     resend_sandbox_redirect: str = ""
+    # Optional reply-to address; improves trust and reduces spam flags when set to a real address (e.g. support@yourdomain.com).
+    resend_reply_to: str = ""
 
     # CORS (comma-separated origins; include all dev ports you use, e.g. 3000, 3001)
     cors_origins: str = "http://localhost:3000,http://localhost:3001"
@@ -33,6 +37,15 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     # Redirect URI for OAuth callback (e.g. http://localhost:8000/api/calendar/callback)
     google_redirect_uri: str = ""
+
+    # Inbound webhook (Zapier/Make) — API key in X-API-Key header. If empty, requests are rejected.
+    inbound_webhook_api_key: str = ""
+
+    # WhatsApp (Twilio) — for campaign channel "whatsapp". Leave empty to disable WhatsApp.
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    # WhatsApp sender number with whatsapp: prefix (e.g. whatsapp:+14155238886 for sandbox).
+    twilio_whatsapp_from: str = ""
 
 
 def get_settings() -> Settings:

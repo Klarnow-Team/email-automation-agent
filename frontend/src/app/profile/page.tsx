@@ -96,7 +96,7 @@ export default function ProfilePage() {
   const updateSocial = (platform: string, url: string) => {
     setForm((prev) => ({
       ...prev,
-      social_links: { ...(prev.social_links ?? {}), [platform]: url || undefined },
+      social_links: { ...(prev.social_links ?? {}), [platform]: url || "" },
     }));
   };
 

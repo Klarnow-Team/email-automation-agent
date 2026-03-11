@@ -16,6 +16,7 @@ import {
   type Campaign,
 } from "@/lib/api";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
+import { Button } from "@/components/ui";
 
 function formatRelative(iso: string) {
   const d = new Date(iso);
@@ -152,7 +153,7 @@ export default function DashboardPage() {
         </header>
         <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6">
           <div className="spinner" />
-          <p className="text-sm font-medium text-[var(--muted-dim)]">Loading dashboard…</p>
+          <p className="text-sm font-medium text-muted-dim">Loading dashboard…</p>
         </div>
       </div>
     );
@@ -183,497 +184,295 @@ export default function DashboardPage() {
 
   const glance = atAGlance;
 
+  const lastCampaign = overview.last_sent_campaign_id
+    ? campaigns.find((c) => c.id === overview.last_sent_campaign_id)
+    : null;
+  const sentCount = lastCampaign?.sent_count ?? 0;
+  const opens = lastCampaign?.opens ?? 0;
+  const clicks = lastCampaign?.clicks ?? 0;
+  const openRatePct = sentCount > 0 ? ((opens / sentCount) * 100).toFixed(1) : "0";
+  const clickRatePct = sentCount > 0 ? ((clicks / sentCount) * 100).toFixed(1) : "0";
+  const ctorPct = opens > 0 ? ((clicks / opens) * 100).toFixed(1) : "0";
+  const growthSum = growth.reduce((a, g) => a + g.count, 0);
+
   return (
-    <div className="page-root dashboard-page">
-      <header className="page-header dashboard-header">
+    <div className="page-root dashboard-page ml-dashboard">
+      <header className="ml-dash-header">
         <div>
           <h1 className="page-title tracking-tight">Dashboard</h1>
-          <p className="page-subtitle">Overview and control center</p>
+          <p className="page-subtitle">Performance overview</p>
+        </div>
+        <div className="ml-dash-timeframe">
+          <span className="ml-dash-timeframe-label">Time period</span>
+          <div className="ml-dash-timeframe-btns">
+            <button
+              type="button"
+              onClick={() => setGrowthPeriod("7d")}
+              className={growthPeriod === "7d" ? "active" : ""}
+            >
+              Last 7 days
+            </button>
+            <button
+              type="button"
+              onClick={() => setGrowthPeriod("30d")}
+              className={growthPeriod === "30d" ? "active" : ""}
+            >
+              Last 30 days
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Hero — welcome + live */}
-      <section className="dashboard-hero">
-        <div className="dashboard-hero-inner">
-          <div className="flex items-center gap-4">
-            <span className="dashboard-hero-logo shrink-0">
-              <img src="/light-klarnow-logo.svg" alt="" className="dashboard-hero-logo-light" aria-hidden />
-              <img src="/dark-klarnow-logo.svg" alt="" className="dashboard-hero-logo-dark" aria-hidden />
-            </span>
-            <div>
-              <h2 className="dashboard-hero-title">Welcome back</h2>
-            <p className="dashboard-hero-subtitle">Here’s what’s happening across your account.</p>
+      {/* Last campaign — MailerLite-style first block */}
+      {lastCampaign && (
+        <section className="ml-section ml-last-campaign">
+          <div className="ml-section-head">
+            <h2 className="ml-section-title">Last campaign</h2>
+            <Link href={`/campaigns?id=${lastCampaign.id}`} className="ml-section-link">
+              View report →
+            </Link>
+          </div>
+          <div className="ml-last-campaign-meta">
+            <p className="ml-last-campaign-name">{lastCampaign.name}</p>
+            <p className="ml-last-campaign-subject">{lastCampaign.subject}</p>
+          </div>
+          <div className="ml-last-campaign-stats">
+            <div className="ml-stat">
+              <span className="ml-stat-value"><AnimatedCounter value={sentCount} /></span>
+              <span className="ml-stat-label">Recipients</span>
+            </div>
+            <div className="ml-stat">
+              <span className="ml-stat-value">{openRatePct}%</span>
+              <span className="ml-stat-label">Open rate</span>
+            </div>
+            <div className="ml-stat">
+              <span className="ml-stat-value">{clickRatePct}%</span>
+              <span className="ml-stat-label">Click rate</span>
+            </div>
+            <div className="ml-stat">
+              <span className="ml-stat-value">{ctorPct}%</span>
+              <span className="ml-stat-label">CTOR</span>
             </div>
           </div>
-          <span className="dashboard-live" aria-live="polite">
-            <span className="dashboard-live-dot" aria-hidden />
-            Live
-          </span>
-        </div>
-      </section>
-
-      {/* Top KPIs — 4 cards */}
-      {glance && (
-        <section className="dashboard-kpis">
-          <Link href="/subscribers" className="dashboard-kpi">
-            <span className="dashboard-kpi-value"><AnimatedCounter value={glance.subscribers} /></span>
-            <span className="dashboard-kpi-label">Subscribers</span>
-          </Link>
-          <Link href="/campaigns" className="dashboard-kpi">
-            <span className="dashboard-kpi-value"><AnimatedCounter value={glance.campaigns} /></span>
-            <span className="dashboard-kpi-label">Campaigns</span>
-          </Link>
-          <Link href="/automations" className="dashboard-kpi">
-            <span className="dashboard-kpi-value"><AnimatedCounter value={glance.active_automations} /></span>
-            <span className="dashboard-kpi-label">Active automations</span>
-          </Link>
-          <Link href="/bookings" className="dashboard-kpi dashboard-kpi-accent">
-            <span className="dashboard-kpi-value"><AnimatedCounter value={glance.upcoming_bookings} /></span>
-            <span className="dashboard-kpi-label">Upcoming bookings</span>
-          </Link>
         </section>
       )}
 
-      {/* Quick actions */}
-      <section className="dashboard-actions">
-        <div className="dashboard-actions-inner">
-          <span className="dashboard-actions-label">Quick actions</span>
-          <div className="dashboard-actions-buttons">
-            <Link href="/campaigns" className="btn-primary text-sm font-semibold px-5 py-2.5 rounded-xl">
-              Create campaign
-            </Link>
-            <Link href="/automations" className="dashboard-pill">Create automation</Link>
-            <Link href="/subscribers" className="dashboard-pill">Add subscriber</Link>
-            {overview.last_sent_campaign_id && (
-              <button
-                type="button"
-                onClick={handleDuplicateCampaign}
-                disabled={!!actionLoading}
-                className="dashboard-pill dashboard-pill-ghost disabled:opacity-50"
-              >
-                {actionLoading === "duplicate" ? "Duplicating…" : "Duplicate last campaign"}
-              </button>
-            )}
-            {pausedAutomations.length > 0 && (
-              <>
-                {pausedAutomations.slice(0, 3).map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => handleResumeAutomation(a.id)}
-                    disabled={!!actionLoading}
-                    className="dashboard-pill dashboard-pill-accent disabled:opacity-50"
-                  >
-                    {actionLoading === `resume-${a.id}` ? "…" : `Resume: ${a.name}`}
-                  </button>
-                ))}
-              </>
-            )}
-          </div>
-        </div>
+      {/* Quick actions — compact */}
+      <section className="ml-actions">
+        <Link href="/campaigns"><Button size="md">Create campaign</Button></Link>
+        <Link href="/automations" className="ml-pill">Create automation</Link>
+        <Link href="/subscribers" className="ml-pill">Add subscriber</Link>
+        {overview.last_sent_campaign_id && (
+          <button
+            type="button"
+            onClick={handleDuplicateCampaign}
+            disabled={!!actionLoading}
+            className="ml-pill ml-pill-ghost disabled:opacity-50"
+          >
+            {actionLoading === "duplicate" ? "Duplicating…" : "Duplicate last campaign"}
+          </button>
+        )}
+        {pausedAutomations.slice(0, 3).map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            onClick={() => handleResumeAutomation(a.id)}
+            disabled={!!actionLoading}
+            className="ml-pill ml-pill-accent disabled:opacity-50"
+          >
+            {actionLoading === `resume-${a.id}` ? "…" : `Resume: ${a.name}`}
+          </button>
+        ))}
       </section>
 
-      <div className="dash-bento">
-        {/* Top row: charts + recent bookings — always fills 6 cols (no empty right side) */}
-        <div className={`dash-card dash-card-modern ${booking ? "dash-bento-cols-2 dash-bento-span-2" : "dash-bento-cols-4"}`}>
-          <div className="dash-section-head">
-            <span className="dash-section-title">Subscriber growth</span>
-            <div className="flex gap-1">
-              <button type="button" onClick={() => setGrowthPeriod("7d")} className={`dash-pill text-sm ${growthPeriod === "7d" ? "active" : ""}`}>7d</button>
-              <button type="button" onClick={() => setGrowthPeriod("30d")} className={`dash-pill text-sm ${growthPeriod === "30d" ? "active" : ""}`}>30d</button>
+      <p className="ml-overview-note">Performance overview for the selected period. Filter by time above.</p>
+
+      <div className="ml-sections">
+        {/* Subscribers — MailerLite-style */}
+        <section className="ml-section">
+          <div className="ml-section-head">
+            <h2 className="ml-section-title">Subscribers</h2>
+            <Link href="/subscribers" className="ml-section-link">Manage →</Link>
+          </div>
+          <div className="ml-metrics">
+            <div className="ml-metric">
+              <span className="ml-metric-value text-foreground"><AnimatedCounter value={sc.active} /></span>
+              <span className="ml-metric-label">Total active</span>
+            </div>
+            <div className="ml-metric">
+              <span className="ml-metric-value text-success">{growthSum}</span>
+              <span className="ml-metric-label">New ({growthPeriod})</span>
+            </div>
+            <div className="ml-metric">
+              <span className="ml-metric-value text-muted">{sc.unsubscribed}</span>
+              <span className="ml-metric-label">Unsubscribed</span>
             </div>
           </div>
-          <div className="dash-chart-wrap h-28">
+          <div className="ml-chart-wrap">
             {growth.map(({ date: d, count }) => {
               const max = Math.max(1, ...growth.map((g) => g.count));
               const h = max ? (count / max) * 100 : 0;
-              return <div key={d} className="dash-chart-bar" style={{ height: `${Math.max(6, h)}%` }} title={`${d}: ${count}`} />;
+              return <div key={d} className="ml-chart-bar" style={{ height: `${Math.max(8, h)}%` }} title={`${d}: ${count}`} />;
             })}
           </div>
-          <p className="dash-chart-caption">New subscribers per day</p>
-        </div>
-        {booking ? (
-          <div className="dash-card dash-card-modern dash-card-tall dash-bento-cols-4 dash-bento-span-2">
-            <div className="dash-section-head">
-              <span className="dash-section-title">Booking trends</span>
-              <span className="text-xs text-[var(--muted-dim)]">Daily · {booking.time_range}</span>
-            </div>
-            <div className="dash-chart-wrap h-28">
-              {booking.booking_trends.map(({ date: d, count }) => {
-                const max = Math.max(1, ...booking.booking_trends.map((t) => t.count));
-                const h = max ? (count / max) * 100 : 0;
-                return <div key={d} className="dash-chart-bar" style={{ height: `${Math.max(6, h)}%` }} title={`${d}: ${count}`} />;
-              })}
-            </div>
-            <p className="dash-chart-caption">Bookings per day</p>
-          </div>
-        ) : (
-          <div className="dash-card dash-card-modern dash-bento-cols-2">
-            <div className="dash-section-head">
-              <span className="dash-section-title">Recent bookings</span>
-              <Link href="/bookings" className="dash-section-link">View all →</Link>
-            </div>
-            {recentBookings.length === 0 ? (
-              <p className="dash-empty">No bookings yet.</p>
-            ) : (
-              <div className="space-y-0">
-                {recentBookings.slice(0, 6).map((b) => (
-                  <div key={b.id} className="dash-recent-row">
-                    <div className="min-w-0 flex-1">
-                      <span className="font-medium text-foreground">{b.event_type_name}</span>
-                      <span className="text-muted-dim ml-2 text-xs">{b.attendee_name || b.attendee_email || "—"}</span>
-                    </div>
-                    <span className="dash-recent-time">{formatBookingTime(b.start_at)}</span>
-                    <span className={`badge text-xs ${b.status === "confirmed" ? "badge-sent" : b.status === "cancelled" ? "bg-danger-muted text-danger" : "badge-draft"}`}>
-                      {b.status.replace(/_/g, " ")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+          <p className="ml-chart-caption">New subscribers per day</p>
+        </section>
 
-        {/* ——— Bookings (Control Center) ——— */}
-        {booking && (
-          <>
-            <div className="dash-card dash-card-modern dash-bento-full">
-              <div className="dash-section-head">
-                <span className="dash-section-title">Bookings — Core metrics</span>
-                <div className="flex gap-1">
-                  <button type="button" onClick={() => setBookingRange("7d")} className={`dash-pill text-sm ${bookingRange === "7d" ? "active" : ""}`}>7d</button>
-                  <button type="button" onClick={() => setBookingRange("30d")} className={`dash-pill text-sm ${bookingRange === "30d" ? "active" : ""}`}>30d</button>
-                  <button type="button" onClick={() => setBookingRange("90d")} className={`dash-pill text-sm ${bookingRange === "90d" ? "active" : ""}`}>90d</button>
-                </div>
-              </div>
-              <div className="dash-metric-grid grid-cols-2 sm:grid-cols-6">
-                <div className="dash-metric">
-                  <p className="dash-metric-value text-[var(--foreground)]">{booking.upcoming_bookings}</p>
-                  <p className="dash-metric-label">Upcoming</p>
-                </div>
-                <div className="dash-metric">
-                  <p className="dash-metric-value text-[var(--foreground)]">{booking.total_bookings}</p>
-                  <p className="dash-metric-label">Total ({booking.time_range})</p>
-                </div>
-                <div className="dash-metric">
-                  <p className="dash-metric-value text-warning">{booking.cancellations}</p>
-                  <p className="dash-metric-label">Cancellations</p>
-                </div>
-                <div className="dash-metric">
-                  <p className="dash-metric-value text-[var(--muted)]">{booking.reschedules}</p>
-                  <p className="dash-metric-label">Reschedules</p>
-                </div>
-                {booking.payments_enabled && (
-                  <div className="dash-metric">
-                    <p className="dash-metric-value text-success">${booking.revenue.toFixed(2)}</p>
-                    <p className="dash-metric-label">Revenue</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="dash-card dash-bento-cols-2">
-              <div className="dash-section-head">
-                <span className="dash-section-title">Event type performance</span>
-                {booking.event_type_performance.length > 5 && <Link href="/bookings" className="dash-section-link">View all →</Link>}
-              </div>
-              {booking.event_type_performance.length === 0 ? (
-                <p className="dash-empty">No event types yet. Create one to see performance.</p>
-              ) : (
-                <>
-                  <ul className="dash-list">
-                    {booking.event_type_performance.slice(0, 5).map((et) => (
-                      <li key={et.id} className="dash-list-item">
-                        <span className="text-[var(--foreground)]">{et.name}</span>
-                        <span className="text-[var(--muted-dim)]">{et.bookings_count} bookings</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {booking.event_type_performance.length > 5 && (
-                    <p className="text-xs text-[var(--muted-dim)] mt-2">+{booking.event_type_performance.length - 5} more · <Link href="/bookings" className="text-[var(--accent)] hover:underline">View all</Link></p>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className="dash-card dash-bento-cols-2">
-              <div className="dash-section-head">
-                <span className="dash-section-title">Today&apos;s schedule</span>
-                {booking.today_schedule.length > 5 && <Link href="/bookings" className="dash-section-link">View all →</Link>}
-              </div>
-              {booking.today_schedule.length === 0 ? (
-                <p className="dash-empty">No bookings today.</p>
-              ) : (
-                <>
-                  <ul className="dash-list">
-                    {booking.today_schedule.slice(0, 5).map((b) => (
-                      <li key={b.id} className="dash-list-item">
-                        <div className="min-w-0 flex-1">
-                          <span className="font-medium text-[var(--foreground)]">{b.title}</span>
-                          <span className="text-xs text-[var(--muted-dim)] ml-2">{b.start_at} – {b.end_at}</span>
-                          {b.attendee_name && <span className="block text-sm text-[var(--muted)]">{b.attendee_name}</span>}
-                        </div>
-                        <span className="badge badge-draft shrink-0">{b.status}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {booking.today_schedule.length > 5 && (
-                    <p className="text-xs text-[var(--muted-dim)] mt-2">+{booking.today_schedule.length - 5} more today · <Link href="/bookings" className="text-[var(--accent)] hover:underline">View all</Link></p>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className="dash-card dash-bento-cols-2">
-              <div className="dash-section-head">
-                <span className="dash-section-title">Pending confirmations</span>
-                {booking.pending_confirmations.length > 0 && <span className="badge badge-draft">{booking.pending_confirmations.length}</span>}
-              </div>
-              {booking.pending_confirmations.length === 0 ? (
-                <p className="dash-empty">None. Manual approval not enabled or no pending.</p>
-              ) : (
-                <ul className="dash-list">
-                  {booking.pending_confirmations.slice(0, 5).map((p) => (
-                    <li key={p.id} className="dash-list-item">
-                      <span className="text-[var(--foreground)]">{p.event_type_name}</span>
-                      <span className="text-xs text-[var(--muted-dim)]">{p.attendee_email ?? "—"}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div className="dash-card dash-bento-full">
-              <div className="dash-section-head">
-                <span className="dash-section-title">Team booking load</span>
-                {booking.team_booking_load.length > 5 && <Link href="/bookings" className="dash-section-link">View all →</Link>}
-              </div>
-              {booking.team_booking_load.length === 0 ? (
-                <p className="dash-empty">No team data yet.</p>
-              ) : (
-                <>
-                  <ul className="dash-list">
-                    {booking.team_booking_load.slice(0, 5).map((t) => (
-                      <li key={t.member_id} className="dash-list-item">
-                        <span className="text-[var(--foreground)]">{t.member_name}</span>
-                        <span className="text-[var(--muted-dim)]">{t.bookings_count} bookings</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {booking.team_booking_load.length > 5 && (
-                    <p className="text-xs text-[var(--muted-dim)] mt-2">+{booking.team_booking_load.length - 5} more · <Link href="/bookings" className="text-[var(--accent)] hover:underline">View all</Link></p>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className="dash-card dash-card-compact dash-bento-full">
-              <div className="dash-section-head">
-                <span className="dash-section-title">Booking quick actions</span>
-                <div className="dash-pill-group">
-                  <Link href="/bookings/event-types/new" className="dash-pill">Quick create event type</Link>
-                  <Link href="/bookings/availability" className="dash-pill">Quick availability edit</Link>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Recent bookings — when booking data exists, show in second row */}
-        {booking && (
-          <div className="dash-card dash-card-modern dash-bento-cols-2 dash-bento-span-2">
-            <div className="dash-section-head">
-              <span className="dash-section-title">Recent bookings</span>
-              <Link href="/bookings" className="dash-section-link">View all →</Link>
-            </div>
-            {recentBookings.length === 0 ? (
-              <p className="dash-empty">No bookings yet.</p>
-            ) : (
-              <div className="space-y-0">
-                {recentBookings.slice(0, 6).map((b) => (
-                  <div key={b.id} className="dash-recent-row">
-                    <div className="min-w-0 flex-1">
-                      <span className="font-medium text-foreground">{b.event_type_name}</span>
-                      <span className="text-muted-dim ml-2 text-xs">{b.attendee_name || b.attendee_email || "—"}</span>
-                    </div>
-                    <span className="dash-recent-time">{formatBookingTime(b.start_at)}</span>
-                    <span className={`badge text-xs ${b.status === "confirmed" ? "badge-sent" : b.status === "cancelled" ? "bg-danger-muted text-danger" : "badge-draft"}`}>
-                      {b.status.replace(/_/g, " ")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* Campaigns */}
+        <section className="ml-section">
+          <div className="ml-section-head">
+            <h2 className="ml-section-title">Campaigns</h2>
+            <Link href="/campaigns" className="ml-section-link">View →</Link>
           </div>
-        )}
-
-        {/* Subscribers — full width when no booking (no empty cols); 4 cols when booking (sits next to Recent bookings) */}
-        <div className={`dash-card dash-card-modern dash-card-tall ${booking ? "dash-bento-cols-4 dash-bento-span-2" : "dash-bento-full"}`}>
-          <div className="dash-section-head">
-            <span className="dash-section-title">Subscribers</span>
-            <Link href="/subscribers" className="dash-section-link">Manage →</Link>
-          </div>
-          <div className="dash-metric-grid grid-cols-2 sm:grid-cols-5">
-            <div className="dash-metric">
-              <p className="dash-metric-value text-[var(--foreground)]">{sc.total}</p>
-              <p className="dash-metric-label">Total</p>
-            </div>
-            <div className="dash-metric">
-              <p className="dash-metric-value text-success">{sc.active}</p>
-              <p className="dash-metric-label">Active</p>
-            </div>
-            <div className="dash-metric">
-              <p className="dash-metric-value text-[var(--muted)]">{sc.unsubscribed}</p>
-              <p className="dash-metric-label">Unsubscribed</p>
-            </div>
-            <div className="dash-metric">
-              <p className="dash-metric-value text-warning">{sc.bounced}</p>
-              <p className="dash-metric-label">Bounced</p>
-            </div>
-            <div className="dash-metric">
-              <p className="dash-metric-value text-danger">{sc.suppressed}</p>
-              <p className="dash-metric-label">Suppressed</p>
+          <div className="ml-metrics">
+            <div className="ml-metric"><span className="ml-metric-value text-foreground">{cp.emails_sent}</span><span className="ml-metric-label">Emails sent</span></div>
+            <div className="ml-metric"><span className="ml-metric-value text-foreground">{cp.opens}</span><span className="ml-metric-label">Opens</span></div>
+            <div className="ml-metric"><span className="ml-metric-value text-foreground">{cp.clicks}</span><span className="ml-metric-label">Clicks</span></div>
+            <div className="ml-metric">
+              <span className="ml-metric-value text-foreground">
+                {cp.emails_sent > 0 && cp.opens > 0 ? ((cp.clicks / cp.opens) * 100).toFixed(1) : "0"}%
+              </span>
+              <span className="ml-metric-label">CTOR</span>
             </div>
           </div>
-        </div>
+          <div className="ml-opens-clicks">
+            <div className="ml-oc-bar-wrap">
+              <span className="ml-oc-label">Opens</span>
+              <div className="ml-oc-bar" style={{ width: `${cp.emails_sent ? Math.min(100, (cp.opens / cp.emails_sent) * 100) : 0}%` }} />
+            </div>
+            <div className="ml-oc-bar-wrap">
+              <span className="ml-oc-label">Clicks</span>
+              <div className="ml-oc-bar ml-oc-bar-clicks" style={{ width: `${cp.emails_sent ? Math.min(100, (cp.clicks / cp.emails_sent) * 100) : 0}%` }} />
+            </div>
+          </div>
+        </section>
 
-        {/* Campaign — wide, single row */}
-        <div className="dash-card dash-card-modern dash-bento-cols-4">
-          <div className="dash-section-head">
-            <span className="dash-section-title">Campaign performance</span>
-            <Link href="/campaigns" className="dash-section-link">View →</Link>
+        {/* Automations */}
+        <section className="ml-section">
+          <div className="ml-section-head">
+            <h2 className="ml-section-title">Automations</h2>
+            <Link href="/automations" className="ml-section-link">Configure →</Link>
           </div>
-          <div className="dash-metric-grid grid-cols-3 sm:grid-cols-6">
-            <div className="dash-metric"><p className="dash-metric-value text-[var(--foreground)]">{cp.emails_sent}</p><p className="dash-metric-label">Sent</p></div>
-            <div className="dash-metric"><p className="dash-metric-value text-[var(--foreground)]">{cp.delivered}</p><p className="dash-metric-label">Delivered</p></div>
-            <div className="dash-metric"><p className="dash-metric-value text-[var(--foreground)]">{cp.opens}</p><p className="dash-metric-label">Opens</p></div>
-            <div className="dash-metric"><p className="dash-metric-value text-[var(--foreground)]">{cp.clicks}</p><p className="dash-metric-label">Clicks</p></div>
-            <div className="dash-metric"><p className="dash-metric-value text-warning">{cp.unsubscribes}</p><p className="dash-metric-label">Unsubs</p></div>
-            <div className="dash-metric"><p className="dash-metric-value text-danger">{cp.spam_complaints}</p><p className="dash-metric-label">Spam</p></div>
+          <div className="ml-metrics">
+            <div className="ml-metric"><span className="ml-metric-value text-foreground">{ap.active_automations}</span><span className="ml-metric-label">Active</span></div>
+            <div className="ml-metric"><span className="ml-metric-value text-foreground">{ap.subscribers_in_automations}</span><span className="ml-metric-label">In progress</span></div>
+            <div className="ml-metric"><span className="ml-metric-value text-foreground">{ap.emails_queued}</span><span className="ml-metric-label">Queued</span></div>
+            <div className="ml-metric"><span className="ml-metric-value text-success">{ap.emails_sent_via_automation}</span><span className="ml-metric-label">Sent</span></div>
           </div>
-        </div>
-
-        {/* Automation — narrow, single row */}
-        <div className="dash-card dash-bento-cols-2">
-          <div className="dash-section-head">
-            <span className="dash-section-title">Automation performance</span>
-            <Link href="/automations" className="dash-section-link">Configure →</Link>
-          </div>
-          <div className="dash-metric-grid grid-cols-2 sm:grid-cols-4">
-            <div className="dash-metric"><p className="dash-metric-value text-[var(--foreground)]">{ap.active_automations}</p><p className="dash-metric-label">Active</p></div>
-            <div className="dash-metric"><p className="dash-metric-value text-[var(--foreground)]">{ap.subscribers_in_automations}</p><p className="dash-metric-label">In progress</p></div>
-            <div className="dash-metric"><p className="dash-metric-value text-[var(--foreground)]">{ap.emails_queued}</p><p className="dash-metric-label">Queued</p></div>
-            <div className="dash-metric"><p className="dash-metric-value text-success">{ap.emails_sent_via_automation}</p><p className="dash-metric-label">Sent</p></div>
-          </div>
-        </div>
-
-        {/* Forms — small card */}
-        <div className="dash-card dash-card-muted dash-bento-cols-2">
-          <div className="dash-section-head">
-            <span className="dash-section-title">Forms</span>
-            <span className="text-xs text-[var(--muted-dim)]">Coming soon</span>
-          </div>
-          <div className="dash-metric-grid grid-cols-3">
-            <div className="dash-metric"><p className="dash-metric-value">{fp.views}</p><p className="dash-metric-label">Views</p></div>
-            <div className="dash-metric"><p className="dash-metric-value">{fp.submissions}</p><p className="dash-metric-label">Submissions</p></div>
-            <div className="dash-metric"><p className="dash-metric-value">{fp.conversion_rate ? `${(fp.conversion_rate * 100).toFixed(1)}%` : "—"}</p><p className="dash-metric-label">Conversion</p></div>
-          </div>
-        </div>
-
-        {/* Revenue — small card */}
-        <div className="dash-card dash-card-muted dash-bento-cols-2">
-          <div className="dash-section-head">
-            <span className="dash-section-title">Revenue</span>
-            <span className="text-xs text-[var(--muted-dim)]">Optional</span>
-          </div>
-          <div className="dash-metric-grid grid-cols-3">
-            <div className="dash-metric"><p className="dash-metric-value">${rev.campaign_revenue.toFixed(2)}</p><p className="dash-metric-label">Campaign</p></div>
-            <div className="dash-metric"><p className="dash-metric-value">${rev.automation_revenue.toFixed(2)}</p><p className="dash-metric-label">Automation</p></div>
-            <div className="dash-metric"><p className="dash-metric-value">${rev.per_subscriber_value.toFixed(2)}</p><p className="dash-metric-label">Per subscriber</p></div>
-          </div>
-        </div>
-
-        {/* Alerts — small card */}
-        <div className="dash-card dash-bento-cols-2">
-          <div className="dash-section-head">
-            <span className="dash-section-title">System alerts</span>
-            {alerts.length > 0 && <Link href="/campaigns" className="dash-section-link">View →</Link>}
-          </div>
-          {alerts.length === 0 ? (
-            <p className="dash-empty">No active alerts. System healthy.</p>
-          ) : (
-            <ul className="dash-list">
-              {alerts.map((a) => (
-                <li key={a.id} className="dash-list-item">
-                  <span className="font-medium text-[var(--foreground)] text-sm">{a.alert_type.replace(/_/g, " ")}</span>
-                  <span className="flex items-center gap-2">
-                    {a.last_triggered_at && <span className="text-xs text-[var(--muted-dim)]">{formatRelative(a.last_triggered_at)}</span>}
-                    <span className={`badge ${a.enabled ? "badge-draft" : "badge-sent"}`}>{a.enabled ? "On" : "Off"}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Activity — full width, paginated */}
-        <div className="dash-card dash-card-modern dash-card-tall dash-bento-full">
-          <div className="dash-section-head">
-            <span className="dash-section-title">Recent activity</span>
-            <Link href="/campaigns" className="dash-section-link">View campaigns →</Link>
-          </div>
-          {activityLoading && activity.length === 0 ? (
-            <p className="dash-empty">Loading activity…</p>
-          ) : activity.length === 0 ? (
-            <p className="dash-empty">No recent activity.</p>
-          ) : (
-            <>
-              <ul className="dash-list dash-activity-list">
-                {activity.map((r) => (
-                  <li key={r.id} className="dash-list-item">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <span className="dash-activity-dot" aria-hidden />
-                      <span className="text-[var(--muted-dim)] shrink-0 w-14 text-xs">{formatRelative(r.created_at || "")}</span>
-                      <span className="text-[var(--foreground)] truncate">{formatAction(r.action)}</span>
-                    </div>
-                    {r.entity_type && r.entity_id != null && <span className="text-[var(--muted-dim)] text-xs shrink-0">#{r.entity_id}</span>}
+          {automations.length > 0 && (
+            <div className="ml-list-wrap">
+              <p className="ml-list-title">Workflows</p>
+              <ul className="ml-list">
+                {automations.slice(0, 5).map((a) => (
+                  <li key={a.id} className="ml-list-item">
+                    <Link href={`/automations?id=${a.id}`} className="ml-list-link">{a.name}</Link>
+                    <span className={`ml-badge ${a.is_active ? "ml-badge-active" : "ml-badge-paused"}`}>{a.is_active ? "Active" : "Paused"}</span>
                   </li>
                 ))}
               </ul>
-              <nav className="dash-pagination" aria-label="Activity pagination">
-                <button
-                  type="button"
-                  className="dash-pagination-btn"
-                  disabled={activityPage === 0 || activityLoading}
-                  onClick={() => setActivityPage((p) => Math.max(0, p - 1))}
-                >
-                  Previous
-                </button>
-                <span className="dash-pagination-info">
-                  Page {activityPage + 1}
-                </span>
-                <button
-                  type="button"
-                  className="dash-pagination-btn"
-                  disabled={!hasMoreActivity || activityLoading}
-                  onClick={() => setActivityPage((p) => p + 1)}
-                >
-                  Next
-                </button>
+            </div>
+          )}
+        </section>
+
+        {/* Forms */}
+        <section className="ml-section">
+          <div className="ml-section-head">
+            <h2 className="ml-section-title">Forms</h2>
+            <Link href="/forms" className="ml-section-link">Manage →</Link>
+          </div>
+          <div className="ml-metrics">
+            <div className="ml-metric"><span className="ml-metric-value text-foreground">{fp.views}</span><span className="ml-metric-label">Views</span></div>
+            <div className="ml-metric"><span className="ml-metric-value text-foreground">{fp.submissions}</span><span className="ml-metric-label">Signups</span></div>
+            <div className="ml-metric"><span className="ml-metric-value text-muted">{fp.conversion_rate ? `${(fp.conversion_rate * 100).toFixed(1)}%` : "—"}</span><span className="ml-metric-label">Conversion</span></div>
+          </div>
+        </section>
+
+        {/* Recent activity */}
+        <section className="ml-section ml-section-full">
+          <div className="ml-section-head">
+            <h2 className="ml-section-title">Recent activity</h2>
+            <Link href="/campaigns" className="ml-section-link">View campaigns →</Link>
+          </div>
+          {activityLoading && activity.length === 0 ? (
+            <p className="ml-empty">Loading activity…</p>
+          ) : activity.length === 0 ? (
+            <p className="ml-empty">No recent activity.</p>
+          ) : (
+            <>
+              <ul className="ml-activity-list">
+                {activity.map((r) => (
+                  <li key={r.id} className="ml-activity-item">
+                    <span className="ml-activity-dot" aria-hidden />
+                    <span className="ml-activity-time">{formatRelative(r.created_at || "")}</span>
+                    <span className="ml-activity-action">{formatAction(r.action)}</span>
+                    {r.entity_id != null && <span className="ml-activity-id">#{r.entity_id}</span>}
+                  </li>
+                ))}
+              </ul>
+              <nav className="ml-pagination" aria-label="Activity pagination">
+                <button type="button" className="ml-pagination-btn" disabled={activityPage === 0 || activityLoading} onClick={() => setActivityPage((p) => Math.max(0, p - 1))}>Previous</button>
+                <span className="ml-pagination-info">Page {activityPage + 1}</span>
+                <button type="button" className="ml-pagination-btn" disabled={!hasMoreActivity || activityLoading} onClick={() => setActivityPage((p) => p + 1)}>Next</button>
               </nav>
             </>
           )}
-        </div>
+        </section>
 
-        {/* Draft CTA — full width */}
-        {draftCampaigns.length > 0 && (
-          <div className="dash-cta-card dash-bento-full">
-            <div>
-              <p className="dash-cta-title">You have {draftCampaigns.length} draft campaign{draftCampaigns.length !== 1 ? "s" : ""}</p>
-              <p className="dash-cta-desc">Send or edit from Campaigns.</p>
-            </div>
-            <Link href="/campaigns" className="btn-primary">Jump to campaigns</Link>
+        {/* Bookings — compact */}
+        <section className="ml-section ml-section-full ml-section-muted">
+          <div className="ml-section-head">
+            <h2 className="ml-section-title">Bookings</h2>
+            <Link href="/bookings" className="ml-section-link">View all →</Link>
           </div>
+          {booking ? (
+            <div className="ml-metrics ml-metrics-inline">
+              <div className="ml-metric"><span className="ml-metric-value text-foreground">{booking.upcoming_bookings}</span><span className="ml-metric-label">Upcoming</span></div>
+              <div className="ml-metric"><span className="ml-metric-value text-foreground">{booking.total_bookings}</span><span className="ml-metric-label">Total ({booking.time_range})</span></div>
+              {booking.today_schedule.length > 0 && (
+                <div className="ml-metric"><span className="ml-metric-value text-success">{booking.today_schedule.length}</span><span className="ml-metric-label">Today</span></div>
+              )}
+            </div>
+          ) : (
+            <p className="ml-empty">No booking data. Set up event types to see metrics.</p>
+          )}
+          {recentBookings.length > 0 && (
+            <div className="ml-recent-wrap">
+              <p className="ml-list-title">Recent</p>
+              {recentBookings.slice(0, 4).map((b) => (
+                <div key={b.id} className="ml-recent-row">
+                  <span className="text-foreground font-medium truncate">{b.event_type_name}</span>
+                  <span className="text-muted text-xs">{formatBookingTime(b.start_at)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Alerts */}
+        {alerts.length > 0 && (
+          <section className="ml-section ml-section-full">
+            <div className="ml-section-head">
+              <h2 className="ml-section-title">System alerts</h2>
+              <Link href="/campaigns" className="ml-section-link">View →</Link>
+            </div>
+            <ul className="ml-list">
+              {alerts.map((a) => (
+                <li key={a.id} className="ml-list-item">
+                  <span className="font-medium text-foreground text-sm">{a.alert_type.replace(/_/g, " ")}</span>
+                  <span className={`ml-badge ${a.enabled ? "ml-badge-active" : ""}`}>{a.enabled ? "On" : "Off"}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Draft CTA */}
+        {draftCampaigns.length > 0 && (
+          <section className="ml-cta ml-section-full">
+            <p className="ml-cta-title">You have {draftCampaigns.length} draft campaign{draftCampaigns.length !== 1 ? "s" : ""}</p>
+            <p className="ml-cta-desc">Send or edit from Campaigns.</p>
+            <Link href="/campaigns"><Button>Jump to campaigns</Button></Link>
+          </section>
         )}
       </div>
     </div>

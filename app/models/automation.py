@@ -11,7 +11,8 @@ class Automation(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    trigger_type = Column(String(64), nullable=False)  # e.g. subscriber_added
+    trigger_type = Column(String(64), nullable=False)  # e.g. subscriber_added, form_submitted
+    trigger_config = Column(JSONB, nullable=False, server_default="{}")  # e.g. {"form_id": 1} for form_submitted
     is_active = Column(Integer, default=1, nullable=False)  # 1 = active, 0 = inactive
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -60,3 +61,16 @@ class PendingAutomationDelay(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     run = relationship("AutomationRun", back_populates="pending_delays")
+
+
+class AutomationVersion(Base):
+    """Snapshot of automation name, trigger_type, and steps for rollback."""
+    __tablename__ = "automation_versions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    automation_id = Column(Integer, ForeignKey("automations.id", ondelete="CASCADE"), nullable=False)
+    version_number = Column(Integer, nullable=False)  # 1, 2, 3...
+    name = Column(String(255), nullable=False)
+    trigger_type = Column(String(64), nullable=False)
+    steps = Column(JSONB, nullable=False)  # list of {order, step_type, payload}; migration sets default
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

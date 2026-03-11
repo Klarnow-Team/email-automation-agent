@@ -9,7 +9,11 @@ from app.models.form import Form, FormSubmission
 from app.models.subscriber import Subscriber, SubscriberStatus
 from app.models.group import SubscriberGroup
 from app.schemas.form import FormCreate, FormUpdate, FormResponse, FormSubmitPublic
-from app.services.automation_service import run_automation_for_subscriber, trigger_automations_for_new_subscriber
+from app.services.automation_service import (
+    run_automation_for_subscriber,
+    trigger_automations_for_new_subscriber,
+    trigger_automations_for_form_submitted,
+)
 from app.services.activity_service import log_activity
 from app.models.tracking import SubscriberActivity
 
@@ -214,7 +218,8 @@ def submit_form_public(form_id: int, body: FormSubmitPublic, db: Session = Depen
         auto = db.query(Automation).filter(Automation.id == form.trigger_automation_id, Automation.is_active == 1).first()
         if auto:
             run_automation_for_subscriber(db, auto, subscriber)
-    elif created:
+    trigger_automations_for_form_submitted(db, form_id, subscriber)
+    if created:
         trigger_automations_for_new_subscriber(db, subscriber)
     return {
         "success": True,

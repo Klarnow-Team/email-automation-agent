@@ -279,6 +279,23 @@ Migrations: 004 (event_bus, webhook_subscriptions), 005 (activity_logs, system_a
 
 ---
 
+## MailerLite-style features (parity)
+
+The following bring the email/campaign/automation/forms areas closer to MailerLite:
+
+| Feature | Status | Notes |
+|--------|--------|-------|
+| **Send campaign to segment** | Done | `CampaignSendRequest.segment_id` and optional `exclude_segment_id`; resolved in router via `evaluate_segment`. Send modal in UI has "Send to: All active / Segment X". |
+| **Personalization** | Done | `{{first_name}}` (first word of name) and `{{custom_field_key}}` from subscriber `custom_fields` in campaign subject/body (with existing `{{name}}`, `{{email}}`, `{{id}}`). |
+| **Form-submitted automation trigger** | Done | `trigger_type=form_submitted`; optional `trigger_config.form_id` to run only when that form is submitted. Migration 021 adds `automations.trigger_config`; form submit calls `trigger_automations_for_form_submitted(db, form_id, subscriber)`. |
+| **Re-send to non-openers** | Done | API `GET /api/campaigns/{id}/non-opener-subscriber-ids`; UI "Re-send to non-openers" flow. |
+| **A/B split at send** | Done | Campaign has `ab_subject_b`, `ab_html_body_b`, `ab_split_percent`; send uses random split. **Not done:** "Choose winner then send winner to rest" (would need ab_winner + second send job). |
+| **Scheduled send** | Done | `scheduled_at` on campaign; worker `POST /api/workers/process-scheduled-campaigns`. |
+| **Open/click tracking** | Done | Tracking pixel and link redirect; `TrackingEvent`; opens/clicks in campaign list and analytics. |
+| **Groups, tags, segments** | Done | Groups/tags with segment rules (in_group, has_tag); segment evaluation with AND/OR and behavioral (opened_campaign, clicked_campaign). |
+
+---
+
 ## Implemented in this pass (no breaking changes)
 
 - **FEATURE_MAP.md** — This audit document.

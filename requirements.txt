@@ -10,4 +10,5 @@ loguru
 pydantic[email]
 httpx
 resend
+twilio
 sqlalchemy

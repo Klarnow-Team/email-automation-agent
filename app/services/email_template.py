@@ -42,12 +42,26 @@ def wrap_transactional_html(inner_html: str, logo_url: str = "") -> str:
           </tr>
           <tr>
             <td style="padding:28px 32px 36px;border-top:1px solid #e8e6ec;background-color:#faf9fc;">
-              <p style="margin:0 0 12px;font-size:13px;color:#6b6775;line-height:1.5;">
-                You received this email because you're subscribed to our list.
-              </p>
-              <p style="margin:0;">
-                <a href="{{unsubscribe_url}}" style="display:inline-block;padding:10px 20px;font-size:14px;font-weight:600;color:#ffffff;background-color:#6d5ee8;border-radius:8px;text-decoration:none;">Unsubscribe</a>
-              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="width:50%;vertical-align:top;text-align:left;padding-right:24px;">
+                    <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:#141216;">Klarnow</p>
+                    <p style="margin:0 0 4px;font-size:13px;color:#6b6775;line-height:1.5;">Pendleton Way, Salford, Greater Manchester, M6 5FW</p>
+                    <p style="margin:0 0 12px;font-size:13px;color:#6b6775;line-height:1.5;">United Kingdom</p>
+                    <p style="margin:0;font-size:13px;color:#6b6775;">
+                      <a href="https://x.com/klarnow" style="color:#6d5ee8;text-decoration:none;">X</a> &nbsp; <a href="https://www.instagram.com/klarnow/" style="color:#6d5ee8;text-decoration:none;">Instagram</a> &nbsp; <a href="https://www.linkedin.com/company/klarnow/" style="color:#6d5ee8;text-decoration:none;">LinkedIn</a>
+                    </p>
+                  </td>
+                  <td style="width:50%;vertical-align:top;text-align:right;">
+                    <p style="margin:0 0 12px;font-size:13px;color:#6b6775;line-height:1.5;">
+                      You received this email because you signed up on our website or made a purchase from us.
+                    </p>
+                    <p style="margin:0;">
+                      <a href="{{unsubscribe_url}}" style="display:inline-block;padding:10px 20px;font-size:14px;font-weight:600;color:#ffffff;background-color:#6d5ee8;border-radius:8px;text-decoration:none;">Unsubscribe</a>
+                    </p>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
         </table>

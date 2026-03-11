@@ -14,8 +14,11 @@ const SECTIONS = [
   { id: "tags", title: "Tags" },
   { id: "suppression", title: "Suppression list" },
   { id: "forms", title: "Forms" },
+  { id: "webhooks", title: "Webhooks" },
   { id: "bookings", title: "Bookings" },
+  { id: "team", title: "Team members" },
   { id: "profile", title: "Profile" },
+  { id: "audit-logs", title: "Audit logs" },
   { id: "workers", title: "Backend workers" },
 ];
 
@@ -214,6 +217,18 @@ export default function ManualPage() {
             </ul>
           </section>
 
+          <section id="webhooks" className="manual-section">
+            <h2 className="manual-section-heading">Webhooks</h2>
+            <p>
+              <Link href="/webhooks" className="text-(--accent) hover:underline font-medium">Webhooks</Link> send HTTP POST requests to your URL when events occur (subscriber created, campaign sent, automation entered, etc.). Use them for integrations.
+            </p>
+            <ul>
+              <li><strong>Add webhook</strong> — URL, optional event type filter, optional secret for HMAC verification.</li>
+              <li><strong>Event types</strong> — subscriber.created, subscriber.updated, campaign.sent, automation.entered, automation.completed. Leave empty to receive all.</li>
+              <li><strong>Enable/disable</strong> — Disabled webhooks do not receive events.</li>
+            </ul>
+          </section>
+
           <section id="bookings" className="manual-section">
             <h2 className="manual-section-heading">Bookings</h2>
             <p>
@@ -229,12 +244,30 @@ export default function ManualPage() {
             <p className="text-sm text-muted-dim">Payments (Stripe/PayPal) require external setup; without them you can still mark event types as paid and use internal/mock payment state.</p>
           </section>
 
+          <section id="team" className="manual-section">
+            <h2 className="manual-section-heading">Team members</h2>
+            <p>
+              <Link href="/team" className="text-(--accent) hover:underline font-medium">Team members</Link> are people who can receive bookings. Add them here, then assign them to event types in Bookings → Event types → Edit → Team.
+            </p>
+            <ul>
+              <li><strong>Add / remove</strong> — Name only. Assign to event types for round-robin or pool booking.</li>
+              <li><strong>Vacation blocks</strong> — Add time-off per member in event type settings to exclude their slots.</li>
+            </ul>
+          </section>
+
           <section id="profile" className="manual-section">
             <h2 className="manual-section-heading">Profile</h2>
             <p>
               <Link href="/profile" className="text-(--accent) hover:underline font-medium">Profile</Link> holds your booking profile: username, timezone, bio, social links, branding, custom domain, SEO, and embed options. This is the face of your public booking page.
             </p>
             <p className="text-sm text-muted-dim">Change display name, timezone, and branding so invitees see consistent info when booking.</p>
+          </section>
+
+          <section id="audit-logs" className="manual-section">
+            <h2 className="manual-section-heading">Audit logs</h2>
+            <p>
+              <Link href="/audit-logs" className="text-(--accent) hover:underline font-medium">Audit logs</Link> record create, update, and delete actions for event types, bookings, and other resources. Filter by resource type and action; useful for debugging and compliance.
+            </p>
           </section>
 
           <section id="workers" className="manual-section">
