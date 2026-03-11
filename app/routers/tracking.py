@@ -4,13 +4,14 @@ import hashlib
 import urllib.parse
 from base64 import urlsafe_b64decode
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
 from app.models.tracking import TrackingEvent
+from app.utils.user_agent import parse_user_agent
 
 router = APIRouter()
 
@@ -30,6 +31,7 @@ def _verify_signature(key: str, payload: str, sig: str) -> bool:
 
 @router.get("/t/open")
 def track_open(
+    request: Request,
     c: int,
     s: int,
     sig: str = "",
@@ -40,19 +42,27 @@ def track_open(
     payload = f"open:{c}:{s}"
     if not _verify_signature(settings.tracking_secret, payload, sig):
         raise HTTPException(status_code=400, detail="Invalid signature")
+    ua = request.headers.get("user-agent")
+    email_client, device, environment = parse_user_agent(ua)
+    event_payload = {"user_agent": ua, "email_client": email_client, "device": device, "environment": environment}
     event = TrackingEvent(
         campaign_id=c,
         subscriber_id=s,
         event_type="open",
-        payload=None,
+        payload=event_payload,
     )
     db.add(event)
     db.commit()
-    return Response(content=_TRACKING_PIXEL_GIF, media_type="image/gif")
+    return Response(
+        content=_TRACKING_PIXEL_GIF,
+        media_type="image/gif",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
+    )
 
 
 @router.get("/t/click")
 def track_click(
+    request: Request,
     c: int,
     s: int,
     url: str,
@@ -61,19 +71,29 @@ def track_click(
 ):
     """Log a click event and redirect to the destination URL."""
     settings = get_settings()
-    # Verify signature: we signed with the original (decoded) destination URL; request may have raw or decoded
+    # Verify signature: we signed with the original (decoded) destination URL; request may be raw or single/double encoded
     url_decoded = urllib.parse.unquote(url)
-    for url_for_sig in (url_decoded, url):
+    url_decoded_twice = urllib.parse.unquote(url_decoded)
+    for url_for_sig in (url_decoded, url_decoded_twice, url):
         payload = f"click:{c}:{s}:{url_for_sig}"
         if _verify_signature(settings.tracking_secret, payload, sig):
             break
     else:
         raise HTTPException(status_code=400, detail="Invalid signature")
+    ua = request.headers.get("user-agent")
+    email_client, device, environment = parse_user_agent(ua)
+    event_payload = {
+        "url": url_decoded,
+        "user_agent": ua,
+        "email_client": email_client,
+        "device": device,
+        "environment": environment,
+    }
     event = TrackingEvent(
         campaign_id=c,
         subscriber_id=s,
         event_type="click",
-        payload={"url": url_decoded},
+        payload=event_payload,
     )
     db.add(event)
     db.commit()

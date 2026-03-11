@@ -10,24 +10,36 @@ function baseUrl(): string {
 
 export async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const url = baseUrl() ? `${baseUrl()}${path}` : path;
-  const res = await fetch(url, {
-    ...options,
-    headers: { "Content-Type": "application/json", ...options?.headers },
-  });
+  const method = (options?.method ?? "GET").toUpperCase();
+  const hasBody = options?.body != null && options.body !== "";
+  const headers: Record<string, string> = { ...(options?.headers as Record<string, string>) };
+  if (hasBody || (method !== "GET" && method !== "DELETE")) {
+    headers["Content-Type"] = headers["Content-Type"] ?? "application/json";
+  }
+  const res = await fetch(url, { ...options, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(
       typeof err.detail === "string" ? err.detail : JSON.stringify(err)
     );
   }
-  if (res.status === 204) return undefined as T;
-  return res.json();
+  if (res.status === 204 || res.headers.get("Content-Length") === "0") {
+    return undefined as T;
+  }
+  const text = await res.text();
+  if (!text || text.trim() === "") return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return undefined as T;
+  }
 }
 
 export type Subscriber = {
   id: number;
   email: string;
   name: string | null;
+  phone?: string | null;
   status: string;
   custom_fields?: Record<string, string> | null;
   created_at: string;
@@ -38,6 +50,7 @@ export type Subscriber = {
 export type Campaign = {
   id: number;
   name: string;
+  channel?: string;
   subject: string;
   html_body: string;
   plain_body?: string | null;
@@ -71,27 +84,75 @@ export type Automation = {
   steps: AutomationStep[];
 };
 
+export type AutomationRun = {
+  id: number;
+  automation_id: number;
+  subscriber_id: number;
+  subscriber_email: string | null;
+  subscriber_name: string | null;
+  current_step: number;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  error_message: string | null;
+};
+
+export type AutomationVersion = {
+  id: number;
+  automation_id: number;
+  version_number: number;
+  name: string;
+  trigger_type: string;
+  steps: { order: number; step_type: string; payload?: Record<string, unknown> }[];
+  created_at: string | null;
+};
+
 export const subscribersApi = {
   list: (skip = 0, limit = 100) =>
     api<Subscriber[]>(`/api/subscribers?skip=${skip}&limit=${limit}`),
-  create: (body: { email: string; name?: string; custom_fields?: Record<string, string> }) =>
+  create: (body: { email: string; name?: string; phone?: string; custom_fields?: Record<string, string> }) =>
     api<Subscriber>("/api/subscribers", {
       method: "POST",
       body: JSON.stringify(body),
     }),
   get: (id: number) => api<Subscriber>(`/api/subscribers/${id}`),
-  update: (id: number, body: { name?: string; status?: string; custom_fields?: Record<string, string> }) =>
+  update: (id: number, body: { name?: string; status?: string; phone?: string; custom_fields?: Record<string, string> }) =>
     api<Subscriber>(`/api/subscribers/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
   delete: (id: number) =>
     api<void>(`/api/subscribers/${id}`, { method: "DELETE" }),
-  import: (body: { email: string; name?: string }[]) =>
+  import: (body: { email: string; name?: string; phone?: string }[]) =>
     api<Subscriber[]>("/api/subscribers/import", {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  getStats: (period: string) =>
+    api<SubscriberStats>(`/api/subscribers/stats?period=${encodeURIComponent(period)}`),
+};
+
+export type SubscriberStats = {
+  total_active: number;
+  new_today: number;
+  new_in_period: number;
+  new_this_month: number;
+  unsubscribed_in_period: number;
+  period: string;
+  chart: { dates: string[]; subscribes: number[]; unsubscribes: number[] };
+  top_domains: { domain: string; count: number }[];
+  top_email_clients: { client: string; count: number }[];
+  reading_environment: { environment: string; count: number }[];
+  subscriber_engagement: {
+    read_never: number;
+    read_sometimes: number;
+    read_often: number;
+    active_count: number;
+  };
+  avg_open_rate: number;
+  avg_click_rate: number;
+  avg_new_subscribers: number;
+  avg_unsubscribes: number;
 };
 
 export const campaignsApi = {
@@ -99,8 +160,9 @@ export const campaignsApi = {
     api<Campaign[]>(`/api/campaigns?skip=${skip}&limit=${limit}`),
   create: (body: {
     name: string;
+    channel?: string;
     subject: string;
-    html_body: string;
+    html_body?: string | null;
     plain_body?: string | null;
     scheduled_at?: string | null;
     ab_subject_b?: string | null;
@@ -112,12 +174,12 @@ export const campaignsApi = {
       body: JSON.stringify(body),
     }),
   get: (id: number) => api<Campaign>(`/api/campaigns/${id}`),
-  update: (id: number, body: Partial<Pick<Campaign, "name" | "subject" | "html_body" | "plain_body" | "scheduled_at" | "ab_subject_b" | "ab_html_body_b" | "ab_split_percent" | "ab_winner">>) =>
+  update: (id: number, body: Partial<Pick<Campaign, "name" | "channel" | "subject" | "html_body" | "plain_body" | "scheduled_at" | "ab_subject_b" | "ab_html_body_b" | "ab_split_percent" | "ab_winner">>) =>
     api<Campaign>(`/api/campaigns/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
-  send: (id: number, body: { recipient_ids?: number[] }) =>
+  send: (id: number, body: { recipient_ids?: number[]; segment_id?: number; exclude_segment_id?: number }) =>
     api<{ sent: number; message: string }>(`/api/campaigns/${id}/send`, {
       method: "POST",
       body: JSON.stringify(body),
@@ -128,6 +190,17 @@ export const campaignsApi = {
     api<Campaign>(`/api/campaigns/${id}/duplicate`, { method: "POST" }),
   delete: (id: number) =>
     api<void>(`/api/campaigns/${id}`, { method: "DELETE" }),
+  uploadImage: async (file: File): Promise<{ url: string }> => {
+    const url = baseUrl() ? `${baseUrl()}/api/campaigns/upload-image` : "/api/campaigns/upload-image";
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(url, { method: "POST", body: form });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(typeof err.detail === "string" ? err.detail : JSON.stringify(err));
+    }
+    return res.json();
+  },
 };
 
 export type DashboardOverview = {
@@ -260,6 +333,9 @@ export type Segment = {
   name: string;
   rules: unknown[] | null;
   created_at: string;
+  subscriber_count?: number | null;
+  open_rate?: number | null;
+  click_rate?: number | null;
 };
 
 export const segmentsApi = {
@@ -288,6 +364,8 @@ export type Group = {
   name: string;
   created_at: string;
   subscriber_count?: number;
+  open_rate?: number | null;
+  click_rate?: number | null;
 };
 
 export const groupsApi = {
@@ -305,10 +383,34 @@ export const groupsApi = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+  addSubscribers: (id: number, body: { subscriber_ids: number[] }) =>
+    api<{ subscriber_ids: number[]; added_count: number; already_in_group_count: number }>(
+      `/api/groups/${id}/subscribers`,
+      { method: "POST", body: JSON.stringify(body) }
+    ),
   addSubscriber: (groupId: number, subscriberId: number) =>
     api<{ message: string }>(`/api/groups/${groupId}/subscribers/${subscriberId}`, { method: "POST" }),
   removeSubscriber: (groupId: number, subscriberId: number) =>
     api<void>(`/api/groups/${groupId}/subscribers/${subscriberId}`, { method: "DELETE" }),
+};
+
+export type SubscriberField = {
+  id: number;
+  key: string;
+  title: string;
+  field_type: string;
+  created_at: string;
+  subscriber_count?: number;
+};
+
+export const fieldsApi = {
+  list: () => api<SubscriberField[]>("/api/fields"),
+  get: (id: number) => api<SubscriberField>(`/api/fields/${id}`),
+  create: (body: { title: string; field_type: string }) =>
+    api<SubscriberField>("/api/fields", { method: "POST", body: JSON.stringify(body) }),
+  update: (id: number, body: { title?: string; field_type?: string }) =>
+    api<SubscriberField>(`/api/fields/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  delete: (id: number) => api<void>(`/api/fields/${id}`, { method: "DELETE" }),
 };
 
 export type Tag = {
@@ -344,6 +446,50 @@ export type SuppressionEntry = {
   type: string;
   value: string;
   created_at: string;
+};
+
+export type WebhookSubscription = {
+  id: number;
+  url: string;
+  event_types: string[] | null;
+  enabled: boolean;
+  created_at: string;
+};
+
+export const webhooksApi = {
+  list: () => api<WebhookSubscription[]>("/api/webhooks"),
+  get: (id: number) => api<WebhookSubscription>(`/api/webhooks/${id}`),
+  create: (body: { url: string; event_types?: string[]; secret?: string }) =>
+    api<WebhookSubscription>("/api/webhooks", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  update: (id: number, body: { url?: string; event_types?: string[]; enabled?: boolean; secret?: string }) =>
+    api<WebhookSubscription>(`/api/webhooks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  delete: (id: number) => api<void>(`/api/webhooks/${id}`, { method: "DELETE" }),
+};
+
+export type AuditLogEntry = {
+  id: number;
+  created_at: string | null;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  details: Record<string, unknown> | null;
+  actor_id: string | null;
+  ip: string | null;
+};
+
+export const auditApi = {
+  list: (skip = 0, limit = 50, resourceType?: string, action?: string) => {
+    const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+    if (resourceType) params.set("resource_type", resourceType);
+    if (action) params.set("action", action);
+    return api<AuditLogEntry[]>(`/api/audit-logs?${params}`);
+  },
 };
 
 export const suppressionApi = {
@@ -430,6 +576,22 @@ export const automationsApi = {
     api<Automation>(`/api/automations/${id}/resume`, { method: "POST" }),
   delete: (id: number) =>
     api<void>(`/api/automations/${id}`, { method: "DELETE" }),
+  getRuns: (id: number, skip = 0, limit = 50, status?: string) => {
+    const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+    if (status) params.set("status", status);
+    return api<{ runs: AutomationRun[]; total: number }>(`/api/automations/${id}/runs?${params}`);
+  },
+  getStats: (id: number) =>
+    api<{ running: number; waiting: number; completed: number; failed: number }>(
+      `/api/automations/${id}/stats`
+    ),
+  getVersions: (id: number) =>
+    api<AutomationVersion[]>(`/api/automations/${id}/versions`),
+  rollback: (id: number, versionId: number) =>
+    api<Automation>(`/api/automations/${id}/rollback`, {
+      method: "POST",
+      body: JSON.stringify({ version_id: versionId }),
+    }),
 };
 
 export type EventType = {

@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
-from app.routers import subscribers, campaigns, automations, dashboard, workers, webhooks, segments, event_types, bookings, team_members, booking_profile, calendar, public_booking, tracking, audit, groups, tags, suppression, forms, unsubscribe
+from app.routers import subscribers, campaigns, automations, dashboard, workers, webhooks, segments, event_types, bookings, team_members, booking_profile, calendar, public_booking, tracking, audit, groups, tags, suppression, forms, unsubscribe, inbound, fields as subscriber_fields
 
 settings = get_settings()
 app = FastAPI(title="Klarnow mailing tool", version="0.1.0")
@@ -41,6 +41,8 @@ app.include_router(public_booking.router, prefix="/api/public", tags=["public-bo
 app.include_router(audit.router, prefix="/api/audit-logs", tags=["audit"])
 app.include_router(tracking.router, tags=["tracking"])
 app.include_router(unsubscribe.router, prefix="/api", tags=["unsubscribe"])
+app.include_router(inbound.router, prefix="/api/inbound", tags=["inbound"])
+app.include_router(subscriber_fields.router, prefix="/api/fields", tags=["fields"])
 
 
 # Uploaded campaign images (create dir and mount before other routes that might catch /uploads)
@@ -126,6 +128,10 @@ if _serving_static:
     def _campaigns():
         return _serve_page("campaigns")
 
+    @app.get("/analytics")
+    def _analytics():
+        return _serve_page("analytics")
+
     @app.get("/subscribers")
     def _subscribers():
         return _serve_page("subscribers")
@@ -162,6 +168,18 @@ if _serving_static:
     def _forms():
         return _serve_page("forms")
 
+    @app.get("/webhooks")
+    def _webhooks():
+        return _serve_page("webhooks")
+
+    @app.get("/audit-logs")
+    def _audit_logs():
+        return _serve_page("audit-logs")
+
+    @app.get("/team")
+    def _team():
+        return _serve_page("team")
+
     @app.get("/manual")
     def _manual():
         return _serve_page("manual")
@@ -173,6 +191,10 @@ if _serving_static:
     @app.head("/campaigns")
     def _campaigns_head():
         return _serve_page("campaigns")
+
+    @app.head("/analytics")
+    def _analytics_head():
+        return _serve_page("analytics")
 
     @app.head("/subscribers")
     def _subscribers_head():
@@ -209,6 +231,18 @@ if _serving_static:
     @app.head("/forms")
     def _forms_head():
         return _serve_page("forms")
+
+    @app.head("/webhooks")
+    def _webhooks_head():
+        return _serve_page("webhooks")
+
+    @app.head("/audit-logs")
+    def _audit_logs_head():
+        return _serve_page("audit-logs")
+
+    @app.head("/team")
+    def _team_head():
+        return _serve_page("team")
 
     @app.head("/manual")
     def _manual_head():

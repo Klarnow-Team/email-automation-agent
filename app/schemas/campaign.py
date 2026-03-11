@@ -6,9 +6,10 @@ from pydantic import BaseModel
 
 class CampaignCreate(BaseModel):
     name: str
+    channel: Optional[str] = "email"  # email | whatsapp
     subject: str
-    html_body: str
-    plain_body: Optional[str] = None
+    html_body: Optional[str] = None  # required for email; can be empty for whatsapp
+    plain_body: Optional[str] = None  # optional for email; message body for whatsapp
     scheduled_at: Optional[datetime] = None
     ab_subject_b: Optional[str] = None
     ab_html_body_b: Optional[str] = None
@@ -18,6 +19,7 @@ class CampaignCreate(BaseModel):
 class CampaignResponse(BaseModel):
     id: int
     name: str
+    channel: Optional[str] = "email"
     subject: str
     html_body: str
     plain_body: Optional[str] = None
@@ -39,6 +41,7 @@ class CampaignResponse(BaseModel):
 
 class CampaignUpdate(BaseModel):
     name: Optional[str] = None
+    channel: Optional[str] = None
     subject: Optional[str] = None
     html_body: Optional[str] = None
     plain_body: Optional[str] = None
@@ -51,3 +54,5 @@ class CampaignUpdate(BaseModel):
 
 class CampaignSendRequest(BaseModel):
     recipient_ids: Optional[List[int]] = None  # None or empty = all active subscribers
+    segment_id: Optional[int] = None  # If set, send only to subscribers matching this segment (MailerLite-style)
+    exclude_segment_id: Optional[int] = None  # If set, exclude subscribers matching this segment

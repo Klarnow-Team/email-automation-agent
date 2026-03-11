@@ -3,30 +3,35 @@ from pathlib import Path
 from typing import List
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.database import get_db
 from app.models.campaign import Campaign, CampaignRecipient, CampaignStatus
+from app.models.segment import Segment
+from app.models.subscriber import Subscriber, SubscriberStatus
 from app.models.tracking import TrackingEvent
 from app.schemas.campaign import CampaignCreate, CampaignUpdate, CampaignResponse, CampaignSendRequest
 from app.services.campaign_service import send_campaign
+from app.services.segment_service import evaluate_segment
 
 router = APIRouter()
 
-ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml"}
 
 
 @router.post("/upload-image")
 def upload_campaign_image(request: Request, file: UploadFile = File(...)):
-    """Upload an image for use in a campaign. Returns a public URL."""
+    """Upload an image for use in a campaign. Returns a public URL. Supports PNG, JPEG, GIF, WebP, SVG."""
     if file.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid type. Allowed: {', '.join(ALLOWED_IMAGE_TYPES)}",
         )
     ext = Path(file.filename or "image").suffix.lower() or ".jpg"
-    if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+    if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"):
         ext = ".jpg"
     name = f"{uuid.uuid4().hex}{ext}"
     uploads_dir = Path(__file__).resolve().parent.parent.parent / "uploads"
@@ -36,7 +41,9 @@ def upload_campaign_image(request: Request, file: UploadFile = File(...)):
     if len(contents) > 10 * 1024 * 1024:  # 10 MB
         raise HTTPException(status_code=400, detail="File too large (max 10 MB)")
     path.write_bytes(contents)
-    base = str(request.base_url).rstrip("/")
+    # Use TRACKING_BASE_URL when set so image URLs work in sent emails (recipients can load from public host)
+    settings = get_settings()
+    base = (settings.tracking_base_url or "").strip().rstrip("/") or str(request.base_url).rstrip("/")
     url = f"{base}/uploads/{name}"
     return {"url": url}
 
@@ -77,10 +84,15 @@ def list_campaigns(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
 
 @router.post("", response_model=CampaignResponse, status_code=201)
 def create_campaign(body: CampaignCreate, db: Session = Depends(get_db)):
+    channel = (body.channel or "email").lower()
+    if channel not in ("email", "whatsapp"):
+        channel = "email"
+    html_body = body.html_body if body.html_body is not None else ""
     campaign = Campaign(
         name=body.name,
+        channel=channel,
         subject=body.subject,
-        html_body=body.html_body,
+        html_body=html_body,
         plain_body=body.plain_body,
         scheduled_at=body.scheduled_at,
         ab_subject_b=body.ab_subject_b,
@@ -101,6 +113,8 @@ def update_campaign(campaign_id: int, body: CampaignUpdate, db: Session = Depend
         raise HTTPException(status_code=404, detail="Campaign not found")
     if body.name is not None:
         campaign.name = body.name
+    if body.channel is not None and body.channel.lower() in ("email", "whatsapp"):
+        campaign.channel = body.channel.lower()
     if body.subject is not None:
         campaign.subject = body.subject
     if body.html_body is not None:
@@ -195,7 +209,7 @@ def delete_campaign(campaign_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Campaign not found")
     db.delete(campaign)
     db.commit()
-    return None
+    return Response(status_code=204)
 
 
 @router.post("/{campaign_id}/send")
@@ -208,6 +222,24 @@ def send_campaign_endpoint(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     recipient_ids = body.recipient_ids if body.recipient_ids else None
+    if body.segment_id is not None:
+        seg = db.query(Segment).filter(Segment.id == body.segment_id).first()
+        if not seg:
+            raise HTTPException(status_code=404, detail="Segment not found")
+        segment_ids = set(evaluate_segment(db, seg.rules))
+        if recipient_ids is not None:
+            recipient_ids = [i for i in recipient_ids if i in segment_ids]
+        else:
+            recipient_ids = list(segment_ids)
+    if body.exclude_segment_id is not None:
+        seg = db.query(Segment).filter(Segment.id == body.exclude_segment_id).first()
+        if seg:
+            exclude_ids = set(evaluate_segment(db, seg.rules))
+            if recipient_ids is not None:
+                recipient_ids = [i for i in recipient_ids if i not in exclude_ids]
+            else:
+                all_active = [r[0] for r in db.query(Subscriber.id).filter(Subscriber.status == SubscriberStatus.active).all()]
+                recipient_ids = [i for i in all_active if i not in exclude_ids]
     sent, err = send_campaign(db, campaign, recipient_ids)
     if err:
         raise HTTPException(status_code=400, detail=err)

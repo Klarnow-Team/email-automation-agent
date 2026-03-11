@@ -5,10 +5,13 @@ import {
   automationsApi,
   subscribersApi,
   type Automation,
+  type AutomationRun,
   type AutomationStep,
+  type AutomationVersion,
   type Subscriber,
 } from "@/lib/api";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
+import { Button, Modal } from "@/components/ui";
 
 type StatusFilter = "all" | "active" | "paused";
 
@@ -91,6 +94,15 @@ export default function AutomationsPage() {
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string } | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [runsModal, setRunsModal] = useState<{ automation: Automation } | null>(null);
+  const [runs, setRuns] = useState<AutomationRun[]>([]);
+  const [runsTotal, setRunsTotal] = useState(0);
+  const [runsLoading, setRunsLoading] = useState(false);
+  const [runsStatusFilter, setRunsStatusFilter] = useState<string>("");
+  const [versionsModal, setVersionsModal] = useState<{ automation: Automation } | null>(null);
+  const [versions, setVersions] = useState<AutomationVersion[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [rollingBackId, setRollingBackId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const loadInProgressRef = useRef(false);
@@ -115,6 +127,47 @@ export default function AutomationsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!runsModal) return;
+    setRunsLoading(true);
+    automationsApi
+      .getRuns(runsModal.automation.id, 0, 50, runsStatusFilter || undefined)
+      .then(({ runs: r, total }) => {
+        setRuns(r);
+        setRunsTotal(total);
+      })
+      .catch(() => {
+        setRuns([]);
+        setRunsTotal(0);
+      })
+      .finally(() => setRunsLoading(false));
+  }, [runsModal, runsStatusFilter]);
+
+  useEffect(() => {
+    if (!versionsModal) return;
+    setVersionsLoading(true);
+    automationsApi
+      .getVersions(versionsModal.automation.id)
+      .then(setVersions)
+      .catch(() => setVersions([]))
+      .finally(() => setVersionsLoading(false));
+  }, [versionsModal]);
+
+  const handleRollback = (a: Automation, versionId: number) => {
+    setRollingBackId(versionId);
+    setError(null);
+    automationsApi
+      .rollback(a.id, versionId)
+      .then(() => {
+        setVersionsModal(null);
+        load();
+        setSuccessMessage("Automation restored to previous version.");
+        setTimeout(() => setSuccessMessage(null), 4000);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to rollback"))
+      .finally(() => setRollingBackId(null));
+  };
 
   const filteredList = useMemo(() => {
     let out = list;
@@ -272,7 +325,7 @@ export default function AutomationsPage() {
             Send a series of emails automatically when something happens (e.g. welcome series when someone subscribes).
           </p>
         </div>
-        <button
+        <Button
           onClick={() => {
             if (showForm) closeForm();
             else {
@@ -283,10 +336,9 @@ export default function AutomationsPage() {
               setShowForm(true);
             }
           }}
-          className="btn-primary"
         >
           {showForm ? "Cancel" : "Create automation"}
-        </button>
+        </Button>
       </header>
 
       {/* How automations work + worker tip */}
@@ -322,7 +374,7 @@ export default function AutomationsPage() {
         <div className="alert-error animate-in">
           <span>{error}</span>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => { setError(null); load(); }} className="btn-ghost text-sm">Retry</button>
+            <Button variant="ghost" size="sm" type="button" onClick={() => { setError(null); load(); }}>Retry</Button>
             <button type="button" onClick={() => setError(null)} className="alert-dismiss" aria-label="Dismiss">Dismiss</button>
           </div>
         </div>
@@ -335,36 +387,158 @@ export default function AutomationsPage() {
         </div>
       )}
 
-      {/* Delete confirm modal */}
-      {deleteConfirm && (
+      {/* View runs modal */}
+      {runsModal && (
         <div
           className="modal-backdrop"
-          onClick={(e) => e.target === e.currentTarget && setDeleteConfirm(null)}
+          onClick={(e) => e.target === e.currentTarget && setRunsModal(null)}
           role="dialog"
           aria-modal="true"
-          aria-labelledby="delete-automation-title"
+          aria-labelledby="runs-modal-title"
         >
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 id="delete-automation-title" className="modal-title">Delete automation</h2>
-              <button type="button" onClick={() => setDeleteConfirm(null)} className="modal-close" aria-label="Close">
+          <div className="modal-content max-w-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header shrink-0">
+              <h2 id="runs-modal-title" className="modal-title">Runs: {runsModal.automation.name}</h2>
+              <button type="button" onClick={() => setRunsModal(null)} className="modal-close" aria-label="Close">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div className="modal-body">
-              <p className="text-muted">
-                Delete <strong className="text-foreground">{deleteConfirm.name}</strong>? This cannot be undone. Active runs will stop.
-              </p>
-            </div>
-            <div className="modal-footer">
-              <button type="button" onClick={() => setDeleteConfirm(null)} className="btn-ghost">Cancel</button>
-              <button type="button" onClick={handleDeleteConfirm} className="btn-danger disabled:opacity-50" disabled={deletingId !== null}>
-                {deletingId !== null ? "Deleting…" : "Delete"}
-              </button>
+            <div className="modal-body overflow-y-auto flex-1 min-h-0">
+              <div className="flex flex-wrap gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setRunsStatusFilter("")}
+                  className={`px-2.5 py-1 text-sm rounded-md ${runsStatusFilter === "" ? "bg-(--accent) text-white" : "bg-(--surface-elevated) text-muted hover:text-foreground"}`}
+                >
+                  All
+                </button>
+                {["running", "waiting", "completed", "failed"].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setRunsStatusFilter(s)}
+                    className={`px-2.5 py-1 text-sm rounded-md capitalize ${runsStatusFilter === s ? "bg-(--accent) text-white" : "bg-(--surface-elevated) text-muted hover:text-foreground"}`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+              {runsLoading ? (
+                <div className="flex items-center justify-center py-12 gap-2">
+                  <div className="spinner" />
+                  <span className="text-sm text-muted-dim">Loading runs…</span>
+                </div>
+              ) : runs.length === 0 ? (
+                <p className="text-sm text-muted-dim py-8 text-center">No runs found.</p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-dim mb-2">Showing {runs.length} of {runsTotal} runs</p>
+                  {runs.map((r) => (
+                    <div
+                      key={r.id}
+                      className="rounded-lg border border-(--card-border) p-3 text-sm flex flex-wrap items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground truncate">{r.subscriber_email ?? `Subscriber #${r.subscriber_id}`}</p>
+                        <p className="text-xs text-muted-dim">
+                          Step {r.current_step} · {r.status} · Started {formatDate(r.started_at)}
+                          {r.completed_at && ` · Completed ${formatDate(r.completed_at)}`}
+                        </p>
+                        {r.error_message && <p className="text-xs text-danger mt-1">{r.error_message}</p>}
+                      </div>
+                      <span className={`badge text-xs shrink-0 ${r.status === "completed" ? "badge-sent" : r.status === "failed" ? "bg-danger-muted text-danger" : "badge-draft"}`}>
+                        {r.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
+
+      {/* Version history modal */}
+      {versionsModal && (
+        <div
+          className="modal-backdrop"
+          onClick={(e) => e.target === e.currentTarget && setVersionsModal(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="versions-modal-title"
+        >
+          <div className="modal-content max-w-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header shrink-0">
+              <h2 id="versions-modal-title" className="modal-title">Version history: {versionsModal.automation.name}</h2>
+              <button type="button" onClick={() => setVersionsModal(null)} className="modal-close" aria-label="Close">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="modal-body overflow-y-auto flex-1 min-h-0">
+              <p className="text-sm text-muted-dim mb-4">
+                A new version is saved whenever you edit the name or steps. Restore to revert changes.
+              </p>
+              {versionsLoading ? (
+                <div className="flex items-center justify-center py-12 gap-2">
+                  <div className="spinner" />
+                  <span className="text-sm text-muted-dim">Loading versions…</span>
+                </div>
+              ) : versions.length === 0 ? (
+                <p className="text-sm text-muted-dim py-8 text-center">No version history yet. Edit this automation to create a snapshot.</p>
+              ) : (
+                <div className="space-y-2">
+                  {versions.map((v) => (
+                    <div
+                      key={v.id}
+                      className="rounded-lg border border-(--card-border) p-3 text-sm flex flex-wrap items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground">
+                          v{v.version_number} — {v.name}
+                        </p>
+                        <p className="text-xs text-muted-dim">
+                          {v.steps.length} step{v.steps.length !== 1 ? "s" : ""} · {formatDate(v.created_at)}
+                        </p>
+                        <p className="text-xs text-muted-dim mt-1 truncate" title={flowPreview(v.steps)}>
+                          {flowPreview(v.steps)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRollback(versionsModal.automation, v.id)}
+                        disabled={rollingBackId !== null}
+                        className="btn-ghost text-sm text-(--accent) hover:bg-[rgba(var(--accent-rgb),0.12)] disabled:opacity-50"
+                      >
+                        {rollingBackId === v.id ? "Restoring…" : "Restore"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Modal
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        title="Delete automation"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="danger" onClick={handleDeleteConfirm} disabled={deletingId !== null}>
+              {deletingId !== null ? "Deleting…" : "Delete"}
+            </Button>
+          </>
+        }
+      >
+        {deleteConfirm && (
+          <p className="text-[var(--muted)]">
+            Delete <strong className="text-[var(--foreground)]">{deleteConfirm.name}</strong>? This cannot be undone. Active runs will stop.
+          </p>
+        )}
+      </Modal>
 
       {/* Create / Edit form */}
       {showForm && (
@@ -460,11 +634,11 @@ export default function AutomationsPage() {
               )}
             </div>
             <div className="flex gap-2">
-              <button type="submit" className="btn-primary" disabled={steps.length === 0 || creating}>
+              <Button type="submit" disabled={steps.length === 0 || creating}>
                 {creating ? (editingId ? "Saving…" : "Creating…") : editingId ? "Save changes" : "Create automation"}
-              </button>
+              </Button>
               {editingId && (
-                <button type="button" onClick={closeForm} className="btn-ghost">Cancel</button>
+                <Button variant="ghost" type="button" onClick={closeForm}>Cancel</Button>
               )}
             </div>
           </form>
@@ -559,6 +733,20 @@ export default function AutomationsPage() {
                       title={a.is_active ? "Pause this automation" : "Resume this automation"}
                     >
                       {togglingId === a.id ? "…" : a.is_active ? "Pause" : "Resume"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRunsModal({ automation: a })}
+                      className="btn-ghost text-sm text-(--accent) hover:bg-[rgba(var(--accent-rgb),0.12)]"
+                    >
+                      View runs
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVersionsModal({ automation: a })}
+                      className="btn-ghost text-sm text-(--accent) hover:bg-[rgba(var(--accent-rgb),0.12)]"
+                    >
+                      Version history
                     </button>
                     <button
                       type="button"

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { tagsApi, subscribersApi, type Tag, type Subscriber } from "@/lib/api";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
+import { Button, Modal } from "@/components/ui";
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -166,7 +167,7 @@ export default function TagsPage() {
           <h1 className="page-title">Tags</h1>
           <p className="page-subtitle">Labels on subscribers for segments and automations</p>
         </div>
-        <button
+        <Button
           type="button"
           onClick={() => {
             if (showForm) closeForm();
@@ -176,11 +177,22 @@ export default function TagsPage() {
               setShowForm(true);
             }
           }}
-          className="btn-primary"
         >
           {showForm ? "Cancel" : "Create tag"}
-        </button>
+        </Button>
       </header>
+
+      <section className="rounded-xl border border-(--card-border) bg-(--card-bg-subtle) p-4 mb-4">
+        <h2 className="text-sm font-semibold text-foreground mb-2">How tags work</h2>
+        <ul className="text-sm text-muted space-y-1 list-disc list-inside">
+          <li><strong className="text-foreground">Labels</strong> — Tags are lightweight labels on subscribers (e.g. &quot;VIP&quot;, &quot;Product A&quot;). A subscriber can have many tags.</li>
+          <li><strong className="text-foreground">Create / edit / delete</strong> — Name only. Use Manage subscribers to assign who has each tag.</li>
+          <li><strong className="text-foreground">Segments &amp; automations</strong> — Use has_tag / not_has_tag in segments; add_tag / remove_tag in automations and forms.</li>
+        </ul>
+        <p className="text-xs text-muted-dim mt-3 pt-3 border-t border-(--card-border)">
+          Search by name. Deleting a tag removes it from subscribers but does not delete the subscribers.
+        </p>
+      </section>
 
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         <div className="dash-kpi-card">
@@ -194,7 +206,7 @@ export default function TagsPage() {
       {error && (
         <div className="alert-error animate-in">
           <span>{error}</span>
-          <button type="button" onClick={() => { setError(null); load(); }} className="btn-ghost text-sm">Retry</button>
+          <Button variant="ghost" size="sm" type="button" onClick={() => { setError(null); load(); }}>Retry</Button>
           <button type="button" onClick={() => setError(null)} className="alert-dismiss" aria-label="Dismiss">Dismiss</button>
         </div>
       )}
@@ -221,86 +233,63 @@ export default function TagsPage() {
               />
             </div>
             <div className="flex gap-2">
-              <button type="submit" className="btn-primary" disabled={creating || saving}>
+              <Button type="submit" disabled={creating || saving}>
                 {creating ? "Creating…" : saving ? "Saving…" : editingId != null ? "Save changes" : "Create tag"}
-              </button>
+              </Button>
               {editingId != null && (
-                <button type="button" onClick={closeForm} className="btn-ghost">Cancel</button>
+                <Button variant="ghost" type="button" onClick={closeForm}>Cancel</Button>
               )}
             </div>
           </form>
         </div>
       )}
 
-      {deleteConfirm && (
-        <div
-          className="modal-backdrop"
-          onClick={(e) => e.target === e.currentTarget && setDeleteConfirm(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="delete-tag-title"
-        >
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 id="delete-tag-title" className="modal-title">Delete tag</h2>
-              <button type="button" onClick={() => setDeleteConfirm(null)} className="modal-close" aria-label="Close">
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <div className="modal-body">
-              <p className="text-muted">Delete <strong className="text-foreground">{deleteConfirm.name}</strong>? Subscribers will not be deleted, only this tag will be removed from them.</p>
-            </div>
-            <div className="modal-footer">
-              <button type="button" onClick={() => setDeleteConfirm(null)} className="btn-ghost">Cancel</button>
-              <button type="button" onClick={handleDeleteConfirm} className="btn-danger disabled:opacity-50" disabled={deletingId !== null}>
-                {deletingId !== null ? "Deleting…" : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        title="Delete tag"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="danger" onClick={handleDeleteConfirm} disabled={deletingId !== null}>
+              {deletingId !== null ? "Deleting…" : "Delete"}
+            </Button>
+          </>
+        }
+      >
+        {deleteConfirm && (
+          <p className="text-[var(--muted)]">
+            Delete <strong className="text-[var(--foreground)]">{deleteConfirm.name}</strong>? Subscribers will not be deleted, only this tag will be removed from them.
+          </p>
+        )}
+      </Modal>
 
       {manageTag && (
-        <div
-          className="modal-backdrop"
-          onClick={(e) => e.target === e.currentTarget && setManageTag(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="manage-tag-title"
-        >
-          <div className="modal-content max-w-xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 id="manage-tag-title" className="modal-title">Manage: {manageTag.name}</h2>
-              <button type="button" onClick={() => setManageTag(null)} className="modal-close" aria-label="Close">
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <div className="modal-body overflow-y-auto flex-1">
-              <p className="text-sm text-muted mb-3">Select subscribers to have this tag. Changes save when you click Save.</p>
-              <div className="space-y-2 max-h-80 overflow-y-auto">
-                {subscribers.map((s) => (
-                  <label key={s.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-(--surface-hover) cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={memberIds.includes(s.id)}
-                      onChange={() => toggleMember(s.id)}
-                      className="rounded border-(--card-border)"
-                    />
-                    <span className="text-sm truncate">{s.email}</span>
-                    {s.name && <span className="text-muted-dim text-xs truncate">({s.name})</span>}
-                  </label>
-                ))}
-                {subscribers.length === 0 && <p className="text-sm text-muted-dim">No subscribers yet. Add subscribers from the Subscribers page.</p>}
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button type="button" onClick={() => setManageTag(null)} className="btn-ghost">Close</button>
-              <button type="button" onClick={saveMembers} className="btn-primary" disabled={savingMembers}>
+        <Modal
+          open={true}
+          onClose={() => setManageTag(null)}
+          title={`Manage: ${manageTag.name}`}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setManageTag(null)}>Close</Button>
+              <Button onClick={saveMembers} disabled={savingMembers}>
                 {savingMembers ? "Saving…" : "Save subscribers"}
-              </button>
-            </div>
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-[var(--muted)] mb-3">Select subscribers to have this tag. Changes save when you click Save.</p>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {subscribers.map((s) => (
+              <label key={s.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-[var(--surface-hover)] cursor-pointer">
+                <input type="checkbox" checked={memberIds.includes(s.id)} onChange={() => toggleMember(s.id)} className="rounded border-[var(--card-border)]" />
+                <span className="text-sm truncate">{s.email}</span>
+                {s.name && <span className="text-[var(--muted-dim)] text-xs truncate">({s.name})</span>}
+              </label>
+            ))}
+            {subscribers.length === 0 && <p className="text-sm text-[var(--muted-dim)]">No subscribers yet. Add subscribers from the Subscribers page.</p>}
           </div>
-        </div>
+        </Modal>
       )}
 
       <section className="section-card">

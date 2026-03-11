@@ -17,6 +17,7 @@ class Campaign(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
+    channel = Column(String(16), default="email", nullable=False)  # email | whatsapp
     subject = Column(String(500), nullable=False)
     html_body = Column(Text, nullable=False)
     plain_body = Column(Text, nullable=True)  # optional plain-text version
@@ -30,7 +31,11 @@ class Campaign(Base):
     channel = Column(String(16), default="email", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    recipients = relationship("CampaignRecipient", back_populates="campaign")
+    recipients = relationship(
+        "CampaignRecipient",
+        back_populates="campaign",
+        cascade="all, delete-orphan",
+    )
 
 
 class CampaignRecipient(Base):

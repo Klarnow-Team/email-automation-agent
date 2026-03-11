@@ -54,9 +54,8 @@ def _execute_steps_from(
             # Apply same design as campaigns: wrapper + logo + unsubscribe
             settings = get_settings()
             base_url = (getattr(settings, "frontend_base_url", None) or settings.tracking_base_url or "").strip().rstrip("/")
-            logo_url = f"{base_url}/light-klarnow-logo.svg" if base_url else ""
             unsubscribe_url = build_unsubscribe_url(base_url, settings.tracking_secret or "", subscriber.id) if base_url else "#"
-            wrapped = wrap_transactional_html(inner_html, logo_url=logo_url)
+            wrapped = wrap_transactional_html(inner_html)
             html = wrapped.replace("{{unsubscribe_url}}", unsubscribe_url)
             try:
                 send_email(to=subscriber.email, subject=subject, html=html)
@@ -255,4 +254,20 @@ def trigger_automations_for_field_updated(db: Session, subscriber: Subscriber) -
         .all()
     )
     for auto in automations:
+        run_automation_for_subscriber(db, auto, subscriber)
+
+
+def trigger_automations_for_form_submitted(db: Session, form_id: int, subscriber: Subscriber) -> None:
+    """Trigger automations with trigger_type=form_submitted; optional trigger_config.form_id filters by form (MailerLite-style)."""
+    automations = (
+        db.query(Automation)
+        .filter(Automation.trigger_type == "form_submitted", Automation.is_active == 1)
+        .all()
+    )
+    for auto in automations:
+        config = getattr(auto, "trigger_config", None) or {}
+        if isinstance(config, dict):
+            cfg_form_id = config.get("form_id")
+            if cfg_form_id is not None and cfg_form_id != form_id:
+                continue
         run_automation_for_subscriber(db, auto, subscriber)

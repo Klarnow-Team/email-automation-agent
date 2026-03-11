@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.segment import Segment
 from app.schemas.segment import SegmentCreate, SegmentResponse, SegmentUpdate
+from app.services.rate_stats import get_rates_for_subscriber_ids
 from app.services.segment_service import evaluate_segment
 
 router = APIRouter()
@@ -13,7 +14,23 @@ router = APIRouter()
 
 @router.get("", response_model=List[SegmentResponse])
 def list_segments(db: Session = Depends(get_db)):
-    return db.query(Segment).all()
+    segments = db.query(Segment).all()
+    result = []
+    for seg in segments:
+        ids = evaluate_segment(db, seg.rules)
+        open_rate, click_rate = get_rates_for_subscriber_ids(db, ids)
+        result.append(
+            SegmentResponse(
+                id=seg.id,
+                name=seg.name,
+                rules=seg.rules,
+                created_at=seg.created_at,
+                subscriber_count=len(ids),
+                open_rate=open_rate,
+                click_rate=click_rate,
+            )
+        )
+    return result
 
 
 @router.post("", response_model=SegmentResponse, status_code=201)
@@ -30,7 +47,17 @@ def get_segment(segment_id: int, db: Session = Depends(get_db)):
     seg = db.query(Segment).filter(Segment.id == segment_id).first()
     if not seg:
         raise HTTPException(status_code=404, detail="Segment not found")
-    return seg
+    ids = evaluate_segment(db, seg.rules)
+    open_rate, click_rate = get_rates_for_subscriber_ids(db, ids)
+    return SegmentResponse(
+        id=seg.id,
+        name=seg.name,
+        rules=seg.rules,
+        created_at=seg.created_at,
+        subscriber_count=len(ids),
+        open_rate=open_rate,
+        click_rate=click_rate,
+    )
 
 
 @router.patch("/{segment_id}", response_model=SegmentResponse)
@@ -44,7 +71,17 @@ def update_segment(segment_id: int, body: SegmentUpdate, db: Session = Depends(g
         seg.rules = body.rules
     db.commit()
     db.refresh(seg)
-    return seg
+    ids = evaluate_segment(db, seg.rules)
+    open_rate, click_rate = get_rates_for_subscriber_ids(db, ids)
+    return SegmentResponse(
+        id=seg.id,
+        name=seg.name,
+        rules=seg.rules,
+        created_at=seg.created_at,
+        subscriber_count=len(ids),
+        open_rate=open_rate,
+        click_rate=click_rate,
+    )
 
 
 @router.delete("/{segment_id}", status_code=204)

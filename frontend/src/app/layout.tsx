@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
-import { Nav } from "./Nav";
+import { AppShell } from "@/components/layout/AppShell";
 import { Preloader } from "./Preloader";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Klarnow mailing tool",
   description: "Email automation with Resend (MailerLite-style MVP)",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
@@ -25,14 +28,7 @@ export default function RootLayout({
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>
-        <Nav />
-        <main
-          id="main-content"
-          className="main-with-sidebar main-content-premium relative z-10 min-h-screen px-4 sm:px-6 py-8 sm:py-10"
-          tabIndex={-1}
-        >
-          <div className="mx-auto max-w-7xl relative">{children}</div>
-        </main>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

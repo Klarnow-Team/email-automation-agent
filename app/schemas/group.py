@@ -17,6 +17,8 @@ class GroupResponse(BaseModel):
     name: str
     created_at: datetime
     subscriber_count: Optional[int] = None
+    open_rate: Optional[float] = None
+    click_rate: Optional[float] = None
 
     class Config:
         from_attributes = True

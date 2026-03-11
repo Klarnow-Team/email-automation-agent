@@ -1,3 +1,4 @@
+from email.utils import formataddr
 from typing import List, Optional
 
 import resend
@@ -9,6 +10,16 @@ from app.config import get_settings
 settings = get_settings()
 if settings.resend_api_key:
     resend.api_key = settings.resend_api_key
+
+
+def _get_from_addr(override_email: Optional[str] = None) -> str:
+    """From address: 'Name <email>' when RESEND_FROM_NAME is set, else just email. Person-like names can help Primary tab."""
+    email = (override_email or settings.resend_from_email).strip()
+    name = (settings.resend_from_name or "").strip()
+    if not name:
+        return email
+    return formataddr((name, email))
+
 
 _RESEND_DEV_DOMAIN = "resend.dev"
 _SANDBOX_HINT = (
@@ -46,6 +57,8 @@ def send_email(
         "subject": subject,
         "html": html,
     }
+    if settings.resend_reply_to and settings.resend_reply_to.strip():
+        params["reply_to"] = settings.resend_reply_to.strip()
     try:
         result = resend.Emails.send(params)
         return result
@@ -62,12 +75,12 @@ def send_batch(emails: List[dict]) -> Optional[dict]:
     if not settings.resend_api_key:
         logger.warning("RESEND_API_KEY not set; skipping batch send")
         return None
-    from_addr = settings.resend_from_email
+    from_addr = _get_from_addr()
     params_list = []
     for e in emails:
         p = {
             "from": from_addr,
-            "to": _apply_sandbox_redirect(from_addr, e["to"]),
+            "to": _apply_sandbox_redirect(settings.resend_from_email, e["to"]),
             "subject": e["subject"],
             "html": e["html"],
         }
@@ -75,6 +88,8 @@ def send_batch(emails: List[dict]) -> Optional[dict]:
             p["text"] = e["text"]
         if e.get("headers"):
             p["headers"] = e["headers"]
+        if e.get("reply_to"):
+            p["reply_to"] = e["reply_to"]
         params_list.append(p)
     try:
         result = resend.Batch.send(params_list)
