@@ -75,3 +75,5 @@ class AutomationVersion(Base):
     trigger_type = Column(String(64), nullable=False)
     steps = Column(JSONB, nullable=False)  # list of {order, step_type, payload}; migration sets default
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    automation = relationship("Automation", back_populates="versions")
