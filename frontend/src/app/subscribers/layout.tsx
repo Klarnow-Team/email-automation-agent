@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -13,14 +14,13 @@ const VIEWS = [
   { view: "history", label: "History" },
 ] as const;
 
-export default function SubscribersLayout({
+function SubscribersLayoutShell({
   children,
+  currentView,
 }: {
   children: React.ReactNode;
+  currentView: string;
 }) {
-  const searchParams = useSearchParams();
-  const currentView = searchParams.get("view") || "all";
-
   return (
     <div className="page-root subscribers-section">
       <header className="page-header subscribers-header-minimal">
@@ -48,5 +48,28 @@ export default function SubscribersLayout({
 
       <div className="subscribers-content">{children}</div>
     </div>
+  );
+}
+
+function SubscribersLayoutContent({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const searchParams = useSearchParams();
+  const currentView = searchParams.get("view") || "all";
+
+  return <SubscribersLayoutShell currentView={currentView}>{children}</SubscribersLayoutShell>;
+}
+
+export default function SubscribersLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <Suspense fallback={<SubscribersLayoutShell currentView="all">{children}</SubscribersLayoutShell>}>
+      <SubscribersLayoutContent>{children}</SubscribersLayoutContent>
+    </Suspense>
   );
 }

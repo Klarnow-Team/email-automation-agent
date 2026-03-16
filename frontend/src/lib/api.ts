@@ -67,6 +67,22 @@ export type Campaign = {
   clicks?: number;
 };
 
+export type CampaignCreateBody = {
+  name: string;
+  channel?: string;
+  subject: string;
+  html_body?: string | null;
+  plain_body?: string | null;
+  scheduled_at?: string | null;
+  ab_subject_b?: string | null;
+  ab_html_body_b?: string | null;
+  ab_split_percent?: number;
+};
+
+export type CampaignUpdateBody = Partial<CampaignCreateBody> & {
+  ab_winner?: string | null;
+};
+
 export type AutomationStep = {
   id: number;
   automation_id: number;
@@ -158,23 +174,13 @@ export type SubscriberStats = {
 export const campaignsApi = {
   list: (skip = 0, limit = 100) =>
     api<Campaign[]>(`/api/campaigns?skip=${skip}&limit=${limit}`),
-  create: (body: {
-    name: string;
-    channel?: string;
-    subject: string;
-    html_body?: string | null;
-    plain_body?: string | null;
-    scheduled_at?: string | null;
-    ab_subject_b?: string | null;
-    ab_html_body_b?: string | null;
-    ab_split_percent?: number;
-  }) =>
+  create: (body: CampaignCreateBody) =>
     api<Campaign>("/api/campaigns", {
       method: "POST",
       body: JSON.stringify(body),
     }),
   get: (id: number) => api<Campaign>(`/api/campaigns/${id}`),
-  update: (id: number, body: Partial<Pick<Campaign, "name" | "channel" | "subject" | "html_body" | "plain_body" | "scheduled_at" | "ab_subject_b" | "ab_html_body_b" | "ab_split_percent" | "ab_winner">>) =>
+  update: (id: number, body: CampaignUpdateBody) =>
     api<Campaign>(`/api/campaigns/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
