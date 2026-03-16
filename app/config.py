@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,6 +47,17 @@ class Settings(BaseSettings):
     twilio_auth_token: str = ""
     # WhatsApp sender number with whatsapp: prefix (e.g. whatsapp:+14155238886 for sandbox).
     twilio_whatsapp_from: str = ""
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def parse_debug(cls, value: object) -> object:
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"release", "production", "prod"}:
+                return False
+            if normalized in {"development", "dev"}:
+                return True
+        return value
 
 
 def get_settings() -> Settings:
