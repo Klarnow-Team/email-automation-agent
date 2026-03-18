@@ -11,10 +11,6 @@ import {
   useReactFlow,
   ReactFlowProvider,
   type Connection,
-  type Node,
-  type Edge,
-  type OnNodesChange,
-  type OnEdgesChange,
   Panel,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -27,6 +23,9 @@ import {
   type TriggerId,
   type RuleId,
   type ActionId,
+  type ActionPayload,
+  type WorkflowNode,
+  type WorkflowEdge,
 } from "./workflow-types";
 import {
   getWorkflowFromTriggerConfig,
@@ -60,12 +59,12 @@ function WorkflowBuilderInner({ automation, onSave, onCancel }: BuilderProps) {
   );
 
   const [name, setName] = useState(automation?.name ?? "");
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialGraph.nodes as Node<WorkflowNodeData>[]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialGraph.edges as Edge[]);
-  const [selectedNode, setSelectedNode] = useState<Node<WorkflowNodeData> | null>(null);
+  const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNode>(initialGraph.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<WorkflowEdge>(initialGraph.edges);
+  const [selectedNode, setSelectedNode] = useState<WorkflowNode | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition } = useReactFlow<WorkflowNode, WorkflowEdge>();
 
   const onConnect = useCallback(
     (conn: Connection) => setEdges((eds) => addEdge(conn, eds)),
@@ -79,23 +78,30 @@ function WorkflowBuilderInner({ automation, onSave, onCancel }: BuilderProps) {
       if (!raw) return;
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
       try {
-        const { kind, id: typeId, label } = JSON.parse(raw) as { kind: string; id: string; label: string };
+        const { kind, id: typeId, label } = JSON.parse(raw) as {
+          kind: WorkflowNodeData["kind"];
+          id: string;
+          label: string;
+        };
         const nodeId = getId();
         const data: WorkflowNodeData = {
           label,
-          kind: kind as WorkflowNodeData["kind"],
-          payload: {},
+          kind,
         };
         if (kind === "trigger") {
           data.trigger_type = typeId as TriggerId;
+          data.payload = { trigger_type: typeId };
         } else if (kind === "rule") {
           data.rule_type = typeId as RuleId;
+          data.payload = { rule_type: typeId };
         } else if (kind === "action") {
           data.step_type = typeId as ActionId;
-          if (typeId === "send_email") data.payload = { subject: "", html: "" };
-          if (typeId === "delay") data.payload = { delay_minutes: 60 };
+          data.payload = { step_type: typeId };
+          if (typeId === "send_email") data.payload = { step_type: typeId, subject: "", html: "" };
+          if (typeId === "delay") data.payload = { step_type: typeId, delay_minutes: 60 };
         }
-        setNodes((nds) => nds.concat({ id: nodeId, type: kind, position, data } as Node<WorkflowNodeData>));
+        const newNode: WorkflowNode = { id: nodeId, type: kind, position, data };
+        setNodes((nds) => nds.concat(newNode));
       } catch {
         // ignore invalid drop
       }
@@ -108,7 +114,7 @@ function WorkflowBuilderInner({ automation, onSave, onCancel }: BuilderProps) {
     event.dataTransfer.dropEffect = "move";
   }, []);
 
-  const onNodeClick = useCallback((_e: React.MouseEvent, node: Node<WorkflowNodeData>) => {
+  const onNodeClick = useCallback((_e: React.MouseEvent, node: WorkflowNode) => {
     setSelectedNode(node);
   }, []);
 
@@ -134,7 +140,7 @@ function WorkflowBuilderInner({ automation, onSave, onCancel }: BuilderProps) {
   );
 
   const handleSave = useCallback(async () => {
-    const workflow: { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } = { nodes, edges };
+    const workflow: { nodes: WorkflowNode[]; edges: WorkflowEdge[] } = { nodes, edges };
     const triggerNode = nodes.find((n) => n.type === "trigger");
     const trigger_type = (triggerNode?.data?.trigger_type as string) ?? "subscriber_created";
     const trigger_config = setWorkflowInTriggerConfig(
@@ -227,8 +233,8 @@ function WorkflowBuilderInner({ automation, onSave, onCancel }: BuilderProps) {
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={onNodesChange as OnNodesChange}
-          onEdgesChange={onEdgesChange as OnEdgesChange}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onDrop={onDrop}
           onDragOver={onDragOver}
@@ -236,8 +242,6 @@ function WorkflowBuilderInner({ automation, onSave, onCancel }: BuilderProps) {
           onPaneClick={onPaneClick}
           nodeTypes={workflowNodeTypes}
           defaultEdgeOptions={{ type: "smoothstep", style: { stroke: "var(--muted-dim)", strokeWidth: 2 } }}
-          nodesDeletable
-          edgesDeletable
           deleteKeyCode={["Delete", "Backspace"]}
           fitView
           className="workflow-canvas bg-[var(--background)]"
@@ -301,7 +305,11 @@ function WorkflowBuilderInner({ automation, onSave, onCancel }: BuilderProps) {
                       value={(selectedNode.data.payload?.subject as string) ?? ""}
                       onChange={(e) =>
                         updateNodeData(selectedNode.id, {
-                          payload: { ...selectedNode.data.payload, subject: e.target.value },
+                          payload: {
+                            ...(selectedNode.data.payload as ActionPayload | undefined),
+                            step_type: selectedNode.data.step_type ?? "send_email",
+                            subject: e.target.value,
+                          },
                         })
                       }
                     />
@@ -311,7 +319,11 @@ function WorkflowBuilderInner({ automation, onSave, onCancel }: BuilderProps) {
                         value={(selectedNode.data.payload?.html as string) ?? ""}
                         onChange={(e) =>
                           updateNodeData(selectedNode.id, {
-                            payload: { ...selectedNode.data.payload, html: e.target.value },
+                            payload: {
+                              ...(selectedNode.data.payload as ActionPayload | undefined),
+                              step_type: selectedNode.data.step_type ?? "send_email",
+                              html: e.target.value,
+                            },
                           })
                         }
                         rows={5}
@@ -329,7 +341,11 @@ function WorkflowBuilderInner({ automation, onSave, onCancel }: BuilderProps) {
                     value={(selectedNode.data.payload?.delay_minutes as number) ?? 60}
                     onChange={(e) =>
                       updateNodeData(selectedNode.id, {
-                        payload: { ...selectedNode.data.payload, delay_minutes: parseInt(e.target.value, 10) || 0 },
+                        payload: {
+                          ...(selectedNode.data.payload as ActionPayload | undefined),
+                          step_type: selectedNode.data.step_type ?? "delay",
+                          delay_minutes: parseInt(e.target.value, 10) || 0,
+                        },
                       })
                     }
                   />

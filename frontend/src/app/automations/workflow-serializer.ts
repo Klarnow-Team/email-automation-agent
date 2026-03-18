@@ -4,7 +4,7 @@
  * - Steps sent to API are compiled from the graph (linear path: trigger -> actions; email/delay only for current backend)
  */
 
-import type { WorkflowGraph, WorkflowNodeData } from "./workflow-types";
+import type { ActionPayload, WorkflowGraph, WorkflowNodeData } from "./workflow-types";
 
 const WORKFLOW_KEY = "_workflow";
 
@@ -111,7 +111,7 @@ export function automationToGraph(
         label,
         kind: "action",
         step_type: stepType as never,
-        payload: s.payload || {},
+        payload: (s.payload || {}) as ActionPayload,
       },
     });
     edges.push({ id: `e-${prevId}-${id}`, source: prevId, target: id });

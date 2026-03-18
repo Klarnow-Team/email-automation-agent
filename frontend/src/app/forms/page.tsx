@@ -25,7 +25,7 @@ function formatDate(iso: string | null | undefined): string {
 function embedSnippets(formId: number) {
   const submitUrl = `${base}/api/forms/${formId}/submit`;
   const formOrigin = typeof window !== "undefined" ? window.location.origin : base.replace(/\/api$/, "") || base;
-  const formPageUrl = `${formOrigin}/forms/embed/${formId}`;
+  const formPageUrl = `${formOrigin}/forms/embed?id=${formId}`;
   return {
     url: submitUrl,
     html: `<!-- Form submit endpoint -->\n<form action="${submitUrl}" method="POST">\n  <input type="email" name="email" required placeholder="Email" />\n  <input type="text" name="name" placeholder="Name" />\n  <button type="submit">Subscribe</button>\n</form>`,

@@ -2,9 +2,9 @@
 
 import { memo } from "react";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
-import type { WorkflowNodeData } from "../workflow-types";
+import type { TriggerWorkflowNode } from "../workflow-types";
 
-function TriggerNodeComponent(props: NodeProps<{ data: WorkflowNodeData }>) {
+function TriggerNodeComponent(props: NodeProps<TriggerWorkflowNode>) {
   const { data, selected } = props;
   return (
     <div

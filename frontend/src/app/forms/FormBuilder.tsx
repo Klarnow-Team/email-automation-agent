@@ -178,13 +178,22 @@ export function FormBuilder({ form, groups, automations, onSave, onCancel }: For
               <p className="mt-0.5 text-xs text-[var(--muted)] capitalize">{selectedField.type}</p>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {selectedField.type !== "submit" && selectedField.type !== "hidden" && (
+              {selectedField.type === "hidden" && (
+                <Input
+                  label="Default value"
+                  value={selectedField.default ?? ""}
+                  onChange={(e) => updateField(selectedField.id, { default: e.target.value })}
+                />
+              )}
+              {selectedField.type !== "hidden" && (
                 <>
-                  <Input
-                    label="Label"
-                    value={selectedField.label ?? ""}
-                    onChange={(e) => updateField(selectedField.id, { label: e.target.value })}
-                  />
+                  {selectedField.type !== "submit" && (
+                    <Input
+                      label="Label"
+                      value={selectedField.label ?? ""}
+                      onChange={(e) => updateField(selectedField.id, { label: e.target.value })}
+                    />
+                  )}
                   {(selectedField.type === "text" ||
                     selectedField.type === "email" ||
                     selectedField.type === "name" ||
@@ -196,7 +205,7 @@ export function FormBuilder({ form, groups, automations, onSave, onCancel }: For
                       onChange={(e) => updateField(selectedField.id, { placeholder: e.target.value })}
                     />
                   )}
-                  {selectedField.type !== "submit" && selectedField.type !== "gdpr" && (
+                  {selectedField.type !== "gdpr" && selectedField.type !== "submit" && (
                     <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -225,13 +234,6 @@ export function FormBuilder({ form, groups, automations, onSave, onCancel }: For
                         className="w-full rounded-xl border border-[var(--card-border)] bg-[var(--surface)] px-3 py-2 text-sm"
                       />
                     </div>
-                  )}
-                  {selectedField.type === "hidden" && (
-                    <Input
-                      label="Default value"
-                      value={selectedField.default ?? ""}
-                      onChange={(e) => updateField(selectedField.id, { default: e.target.value })}
-                    />
                   )}
                   {selectedField.type === "gdpr" && (
                     <div>
