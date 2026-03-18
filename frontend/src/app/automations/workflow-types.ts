@@ -3,6 +3,8 @@
  * Stored graph is persisted in automation.trigger_config._workflow.
  */
 
+import type { Edge, Node } from "@xyflow/react";
+
 export type NodeKind = "trigger" | "rule" | "action";
 
 export const TRIGGERS = [
@@ -89,7 +91,13 @@ export type WorkflowNodeData = {
   payload?: TriggerPayload | RulePayload | ActionPayload;
 };
 
+export type TriggerWorkflowNode = Node<WorkflowNodeData, "trigger">;
+export type RuleWorkflowNode = Node<WorkflowNodeData, "rule">;
+export type ActionWorkflowNode = Node<WorkflowNodeData, "action">;
+export type WorkflowNode = Node<WorkflowNodeData, NodeKind>;
+export type WorkflowEdge = Edge;
+
 export type WorkflowGraph = {
-  nodes: Array<{ id: string; type: string; position: { x: number; y: number }; data: WorkflowNodeData }>;
-  edges: Array<{ id: string; source: string; target: string; sourceHandle?: string | null }>;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
 };

@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { formsApi, type FormPublic } from "@/lib/api";
 
 type FieldLike = {
@@ -40,9 +40,9 @@ function submitUrl(formId: number): string {
   return `${base}/api/forms/${formId}/submit`;
 }
 
-export default function EmbedFormPage() {
-  const params = useParams();
-  const id = typeof params.id === "string" ? params.id : null;
+function EmbedFormPageContent() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
   const formId = id ? parseInt(id, 10) : NaN;
 
   const [form, setForm] = useState<FormPublic | null>(null);
@@ -200,6 +200,20 @@ export default function EmbedFormPage() {
         </form>
       )}
     </div>
+  );
+}
+
+export default function EmbedFormPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[200px] flex items-center justify-center p-6">
+          <p className="text-muted">Loading form…</p>
+        </div>
+      }
+    >
+      <EmbedFormPageContent />
+    </Suspense>
   );
 }
 

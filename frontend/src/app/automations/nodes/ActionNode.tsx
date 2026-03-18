@@ -2,9 +2,9 @@
 
 import { memo } from "react";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
-import type { WorkflowNodeData } from "../workflow-types";
+import type { ActionWorkflowNode } from "../workflow-types";
 
-function ActionNodeComponent(props: NodeProps<{ data: WorkflowNodeData }>) {
+function ActionNodeComponent(props: NodeProps<ActionWorkflowNode>) {
   const { data, selected } = props;
   const isEnd = data.step_type === "end_workflow";
   return (

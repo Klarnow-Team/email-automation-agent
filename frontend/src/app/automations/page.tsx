@@ -193,6 +193,14 @@ export default function AutomationsPage() {
     setShowBuilder(true);
   };
 
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setName("");
+    setTriggerType("subscriber_added");
+    setSteps([]);
+  };
+
   const handleBuilderSave = useCallback(
     async (params: {
       name: string;

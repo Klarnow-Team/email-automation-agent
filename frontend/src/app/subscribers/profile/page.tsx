@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { subscribersApi, groupsApi, tagsApi, type SubscriberProfile, type Group, type Tag } from "@/lib/api";
@@ -46,7 +46,7 @@ function formatEventType(eventType: string): string {
   return map[eventType] ?? eventType.replace(/_/g, " ");
 }
 
-export default function SubscriberProfilePage() {
+function SubscriberProfilePageContent() {
   const searchParams = useSearchParams();
   const idParam = searchParams.get("id");
   const id = idParam ? parseInt(idParam, 10) : null;
@@ -437,5 +437,24 @@ export default function SubscriberProfilePage() {
         </p>
       </Modal>
     </div>
+  );
+}
+
+export default function SubscriberProfilePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="page-root">
+          <header className="page-header">
+            <h1 className="page-title">Subscriber profile</h1>
+          </header>
+          <div className="flex min-h-[40vh] items-center justify-center">
+            <div className="spinner" />
+          </div>
+        </div>
+      }
+    >
+      <SubscriberProfilePageContent />
+    </Suspense>
   );
 }
