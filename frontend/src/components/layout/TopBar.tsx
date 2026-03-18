@@ -7,6 +7,7 @@ const routeTitles: Record<string, string> = {
   "/": "Dashboard",
   "/analytics": "Analytics",
   "/subscribers": "Subscribers",
+  "/subscribers/profile": "Subscriber profile",
   "/campaigns": "Campaigns",
   "/automations": "Automations",
   "/segments": "Segments",
@@ -42,7 +43,7 @@ export function TopBar() {
   const title = getPageTitle(pathname ?? "/");
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-4 border-b border-[var(--card-border)] bg-[var(--surface)]/95 px-4 backdrop-blur sm:px-6">
+    <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-4 border-b border-[var(--card-border)] bg-[var(--background)] px-4 sm:px-6">
       <h1 className="font-display text-lg font-semibold tracking-tight text-[var(--foreground)] truncate">
         {title}
       </h1>

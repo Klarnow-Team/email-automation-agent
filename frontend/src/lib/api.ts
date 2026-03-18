@@ -47,6 +47,38 @@ export type Subscriber = {
   tag_ids?: number[];
 };
 
+export type SubscriberActivityItem = {
+  id: number;
+  event_type: string;
+  payload: Record<string, unknown> | null;
+  created_at: string | null;
+};
+
+export type SubscriberCampaignReceived = {
+  campaign_id: number;
+  campaign_name: string;
+  sent_at: string | null;
+  variant: string | null;
+};
+
+export type SubscriberAutomationRun = {
+  run_id: number;
+  automation_id: number;
+  automation_name: string;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+export type SubscriberProfile = {
+  subscriber: Subscriber;
+  activity: SubscriberActivityItem[];
+  campaigns_received: SubscriberCampaignReceived[];
+  automation_runs: SubscriberAutomationRun[];
+  opens_count: number;
+  clicks_count: number;
+};
+
 export type Campaign = {
   id: number;
   name: string;
@@ -95,6 +127,7 @@ export type Automation = {
   id: number;
   name: string;
   trigger_type: string;
+  trigger_config?: Record<string, unknown> | null;
   is_active: boolean;
   created_at: string;
   steps: AutomationStep[];
@@ -146,6 +179,10 @@ export const subscribersApi = {
     }),
   getStats: (period: string) =>
     api<SubscriberStats>(`/api/subscribers/stats?period=${encodeURIComponent(period)}`),
+  getActivity: (id: number, skip = 0, limit = 50) =>
+    api<SubscriberActivityItem[]>(`/api/subscribers/${id}/activity?skip=${skip}&limit=${limit}`),
+  getProfile: (id: number) =>
+    api<SubscriberProfile>(`/api/subscribers/${id}/profile`),
 };
 
 export type SubscriberStats = {
@@ -521,9 +558,31 @@ export type Form = {
   submission_count?: number;
 };
 
+export type FormSubmission = {
+  id: number;
+  form_id: number;
+  subscriber_id: number | null;
+  email: string | null;
+  name: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
+export type FormPublic = {
+  id: number;
+  name: string;
+  form_type: string;
+  fields?: unknown[] | null;
+  success_message?: string | null;
+  redirect_url?: string | null;
+};
+
 export const formsApi = {
   list: () => api<Form[]>("/api/forms"),
   get: (id: number) => api<Form>(`/api/forms/${id}`),
+  getPublic: (id: number) => api<FormPublic>(`/api/forms/${id}/public`),
+  getSubmissions: (formId: number) =>
+    api<FormSubmission[]>(`/api/forms/${formId}/submissions`),
   create: (body: {
     name: string;
     form_type?: string;
@@ -545,6 +604,7 @@ export const automationsApi = {
   create: (body: {
     name: string;
     trigger_type: string;
+    trigger_config?: Record<string, unknown>;
     is_active?: boolean;
     steps: {
       order: number;
@@ -561,6 +621,8 @@ export const automationsApi = {
     id: number,
     body: {
       name?: string;
+      trigger_type?: string;
+      trigger_config?: Record<string, unknown>;
       is_active?: boolean;
       steps?: {
         order: number;

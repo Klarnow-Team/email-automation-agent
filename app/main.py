@@ -136,6 +136,10 @@ if _serving_static:
     def _subscribers():
         return _serve_page("subscribers")
 
+    @app.get("/subscribers/profile")
+    def _subscribers_profile():
+        return _serve_page("subscribers/profile")
+
     @app.get("/automations")
     def _automations():
         return _serve_page("automations")
@@ -168,6 +172,11 @@ if _serving_static:
     def _forms():
         return _serve_page("forms")
 
+    @app.get("/forms/embed/{path:path}")
+    def _forms_embed(path: str):
+        """SPA fallback so iframe /forms/embed/<id> works."""
+        return FileResponse(_frontend_out / "index.html", media_type="text/html")
+
     @app.get("/webhooks")
     def _webhooks():
         return _serve_page("webhooks")
@@ -199,6 +208,10 @@ if _serving_static:
     @app.head("/subscribers")
     def _subscribers_head():
         return _serve_page("subscribers")
+
+    @app.head("/subscribers/profile")
+    def _subscribers_profile_head():
+        return _serve_page("subscribers/profile")
 
     @app.head("/automations")
     def _automations_head():

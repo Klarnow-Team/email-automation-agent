@@ -46,3 +46,35 @@ class SubscriberBulkUpdate(BaseModel):
     status: Optional[str] = None
     phone: Optional[str] = None
     custom_fields: Optional[Dict[str, str]] = None
+
+
+class SubscriberActivityItem(BaseModel):
+    id: int
+    event_type: str
+    payload: Optional[Dict] = None
+    created_at: Optional[str] = None
+
+
+class SubscriberCampaignReceived(BaseModel):
+    campaign_id: int
+    campaign_name: str
+    sent_at: Optional[str] = None
+    variant: Optional[str] = None
+
+
+class SubscriberAutomationRun(BaseModel):
+    run_id: int
+    automation_id: int
+    automation_name: str
+    status: str
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+
+
+class SubscriberProfileResponse(BaseModel):
+    subscriber: SubscriberResponse
+    activity: List[SubscriberActivityItem]
+    campaigns_received: List[SubscriberCampaignReceived]
+    automation_runs: List[SubscriberAutomationRun]
+    opens_count: int = 0
+    clicks_count: int = 0

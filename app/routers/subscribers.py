@@ -7,12 +7,23 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.campaign import CampaignRecipient
+from app.models.automation import Automation, AutomationRun
+from app.models.campaign import Campaign, CampaignRecipient
 from app.models.subscriber import Subscriber, SubscriberStatus
 from app.models.group import SubscriberGroup
 from app.models.tag import SubscriberTag
 from app.models.tracking import SubscriberActivity, TrackingEvent
-from app.schemas.subscriber import SubscriberCreate, SubscriberUpdate, SubscriberResponse, SubscriberImportItem, SubscriberBulkUpdate
+from app.schemas.subscriber import (
+    SubscriberCreate,
+    SubscriberUpdate,
+    SubscriberResponse,
+    SubscriberImportItem,
+    SubscriberBulkUpdate,
+    SubscriberProfileResponse,
+    SubscriberActivityItem,
+    SubscriberCampaignReceived,
+    SubscriberAutomationRun,
+)
 from app.services.automation_service import trigger_automations_for_new_subscriber, trigger_automations_for_field_updated
 from app.services.event_bus import emit as event_emit
 from app.services.activity_service import log_activity
@@ -311,9 +322,103 @@ def get_subscriber_activity(subscriber_id: int, skip: int = 0, limit: int = 50, 
         .all()
     )
     return [
-        {"id": r.id, "event_type": r.event_type, "payload": r.payload, "created_at": r.created_at.isoformat() if r.created_at else None}
+        SubscriberActivityItem(
+            id=r.id,
+            event_type=r.event_type,
+            payload=r.payload,
+            created_at=r.created_at.isoformat() if r.created_at else None,
+        )
         for r in rows
     ]
+
+
+@router.get("/{subscriber_id}/profile", response_model=SubscriberProfileResponse)
+def get_subscriber_profile(subscriber_id: int, db: Session = Depends(get_db)):
+    """Full profile: subscriber, recent activity, campaigns received, automation runs, opens/clicks."""
+    subscriber = db.query(Subscriber).filter(Subscriber.id == subscriber_id).first()
+    if not subscriber:
+        raise HTTPException(status_code=404, detail="Subscriber not found")
+    group_map, tag_map = _get_group_tag_maps(db, [subscriber_id])
+    sub_response = _subscriber_to_response(subscriber, group_map.get(subscriber_id, []), tag_map.get(subscriber_id, []))
+
+    # Recent activity (last 30)
+    activity_rows = (
+        db.query(SubscriberActivity)
+        .filter(SubscriberActivity.subscriber_id == subscriber_id)
+        .order_by(SubscriberActivity.created_at.desc())
+        .limit(30)
+        .all()
+    )
+    activity = [
+        SubscriberActivityItem(
+            id=r.id,
+            event_type=r.event_type,
+            payload=r.payload,
+            created_at=r.created_at.isoformat() if r.created_at else None,
+        )
+        for r in activity_rows
+    ]
+
+    # Campaigns received (join CampaignRecipient + Campaign)
+    recs = (
+        db.query(CampaignRecipient, Campaign)
+        .join(Campaign, Campaign.id == CampaignRecipient.campaign_id)
+        .filter(CampaignRecipient.subscriber_id == subscriber_id, CampaignRecipient.sent_at.isnot(None))
+        .order_by(CampaignRecipient.sent_at.desc())
+        .limit(50)
+        .all()
+    )
+    campaigns_received = [
+        SubscriberCampaignReceived(
+            campaign_id=c.id,
+            campaign_name=c.name,
+            sent_at=cr.sent_at.isoformat() if cr.sent_at else None,
+            variant=cr.variant,
+        )
+        for cr, c in recs
+    ]
+
+    # Automation runs (join AutomationRun + Automation)
+    runs = (
+        db.query(AutomationRun, Automation)
+        .join(Automation, Automation.id == AutomationRun.automation_id)
+        .filter(AutomationRun.subscriber_id == subscriber_id)
+        .order_by(AutomationRun.started_at.desc())
+        .limit(50)
+        .all()
+    )
+    automation_runs = [
+        SubscriberAutomationRun(
+            run_id=ar.id,
+            automation_id=a.id,
+            automation_name=a.name,
+            status=ar.status,
+            started_at=ar.started_at.isoformat() if ar.started_at else None,
+            completed_at=ar.completed_at.isoformat() if ar.completed_at else None,
+        )
+        for ar, a in runs
+    ]
+
+    # Opens and clicks (TrackingEvent)
+    opens_count = (
+        db.query(TrackingEvent.id)
+        .filter(TrackingEvent.subscriber_id == subscriber_id, TrackingEvent.event_type == "open")
+        .count()
+    )
+    clicks_count = (
+        db.query(TrackingEvent.id)
+        .filter(TrackingEvent.subscriber_id == subscriber_id, TrackingEvent.event_type == "click")
+        .count()
+    )
+
+    return SubscriberProfileResponse(
+        subscriber=sub_response,
+        activity=activity,
+        campaigns_received=campaigns_received,
+        automation_runs=automation_runs,
+        opens_count=opens_count,
+        clicks_count=clicks_count,
+    )
 
 
 @router.post("/bulk-update")

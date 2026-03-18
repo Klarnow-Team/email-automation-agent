@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, Suspense } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { subscribersApi, groupsApi, type Subscriber, type SubscriberStats } from "@/lib/api";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
@@ -569,13 +570,6 @@ function SubscribersPageInner() {
     URL.revokeObjectURL(url);
   };
 
-  const toggleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedIds(new Set(paginatedList.map((s) => s.id)));
-    } else {
-      setSelectedIds(new Set());
-    }
-  };
   const toggleOne = (id: number, checked: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -643,6 +637,10 @@ function SubscribersPageInner() {
     () => filteredList.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE),
     [filteredList, page],
   );
+
+  const allFilteredSelected = filteredList.length > 0 && filteredList.every((s) => selectedIds.has(s.id));
+  const selectAllFiltered = () => setSelectedIds(new Set(filteredList.map((s) => s.id)));
+  const clearSelection = () => setSelectedIds(new Set());
 
   useEffect(() => {
     setPage((p) => Math.min(p, Math.max(0, totalPages - 1)));
@@ -743,7 +741,9 @@ function SubscribersPageInner() {
         >
           <option value="">All statuses</option>
           <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+          <option value="unsubscribed">Unsubscribed</option>
+          <option value="bounced">Bounced</option>
+          <option value="suppressed">Suppressed</option>
         </select>
         <div className="flex items-center gap-2 ml-auto">
           <Button variant="ghost" size="sm" type="button" onClick={() => setShowImport(true)} className="inline-flex items-center gap-1.5">
@@ -759,6 +759,10 @@ function SubscribersPageInner() {
 
       {/* List as table */}
       <section className="section-card subscribers-list-card">
+        <div className="subscribers-list-header">
+          <h2 className="section-title">Subscriber list</h2>
+          <span className="subscribers-list-count">{filteredList.length} subscriber{filteredList.length !== 1 ? "s" : ""}</span>
+        </div>
         {filteredList.length === 0 ? (
           <div className="empty-state-centered">
             <div className="empty-state-icon" aria-hidden>
@@ -781,61 +785,80 @@ function SubscribersPageInner() {
           <>
             {selectedIds.size > 0 && (
               <div className="subscribers-bulk-bar">
-                <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+                <span className="subscribers-bulk-count">{selectedIds.size} selected</span>
                 <Button variant="ghost" size="sm" onClick={() => setShowAddToGroup(true)}>Add to group</Button>
                 <Button variant="ghost" size="sm" onClick={() => exportCsv(list.filter((s) => selectedIds.has(s.id)))}>Export selected</Button>
                 <Button variant="danger" size="sm" onClick={() => setDeleteConfirm({ id: -1, email: `${selectedIds.size} subscriber${selectedIds.size !== 1 ? "s" : ""}` })}>Delete</Button>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear selection</Button>
+                <Button variant="ghost" size="sm" onClick={clearSelection}>Clear selection</Button>
               </div>
             )}
 
             <div className="subscribers-table-wrap">
-              <table>
+              <table className="subscribers-table-modern">
                 <thead>
                   <tr>
-                    <th className="w-10 px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={paginatedList.length > 0 && paginatedList.every((s) => selectedIds.has(s.id))}
-                        onChange={(e) => toggleSelectAll(e.target.checked)}
-                        aria-label="Select all on page"
-                        className="rounded border-(--card-border)"
-                      />
+                    <th className="subscribers-th-checkbox">
+                      <label className="subscribers-checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={allFilteredSelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = selectedIds.size > 0 && !allFilteredSelected;
+                          }}
+                          onChange={(e) => (e.target.checked ? selectAllFiltered() : clearSelection())}
+                          aria-label="Select all subscribers"
+                          className="subscribers-checkbox"
+                        />
+                        <span className="subscribers-checkbox-box" aria-hidden />
+                      </label>
+                      {filteredList.length > PAGE_SIZE && !allFilteredSelected && (
+                        <button
+                          type="button"
+                          onClick={selectAllFiltered}
+                          className="subscribers-select-all-link"
+                        >
+                          Select all {filteredList.length} subscribers
+                        </button>
+                      )}
                     </th>
-                    <th>Email</th>
-                    <th>Name</th>
-                    <th>Phone</th>
-                    <th>Status</th>
-                    <th>Date added</th>
-                    <th className="text-right">Actions</th>
+                    <th className="subscribers-th">Email</th>
+                    <th className="subscribers-th">Name</th>
+                    <th className="subscribers-th">Phone</th>
+                    <th className="subscribers-th">Status</th>
+                    <th className="subscribers-th">Date added</th>
+                    <th className="subscribers-th subscribers-th-actions">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedList.map((s) => {
                     const isNew = new Date(s.created_at).getTime() >= SEVEN_DAYS_AGO;
                     return (
-                      <tr key={s.id}>
-                        <td className="w-10 px-4 py-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(s.id)}
-                            onChange={(e) => toggleOne(s.id, e.target.checked)}
-                            aria-label={`Select ${s.email}`}
-                            className="rounded border-(--card-border)"
-                          />
+                      <tr key={s.id} className="subscribers-tr">
+                        <td className="subscribers-td-checkbox">
+                          <label className="subscribers-checkbox-label">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(s.id)}
+                              onChange={(e) => toggleOne(s.id, e.target.checked)}
+                              aria-label={`Select ${s.email}`}
+                              className="subscribers-checkbox"
+                            />
+                            <span className="subscribers-checkbox-box" aria-hidden />
+                          </label>
                         </td>
-                        <td className="cell-email">
-                          <span className="truncate max-w-[200px] inline-block" title={s.email}>{s.email}</span>
-                          <button type="button" onClick={() => copyEmail(s.email)} className="ml-1.5 p-1 rounded text-muted-dim hover:text-foreground hover:bg-(--surface-hover)" title="Copy" aria-label="Copy email">{copiedId === s.email ? <span className="text-success text-xs">Copied</span> : <svg className="h-3.5 w-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>}</button>
+                        <td className="subscribers-td subscribers-td-email">
+                          <Link href={`/subscribers/profile?id=${s.id}`} className="subscribers-email-link" title={s.email}>{s.email}</Link>
+                          <button type="button" onClick={() => copyEmail(s.email)} className="subscribers-copy-btn" title="Copy" aria-label="Copy email">{copiedId === s.email ? <span className="text-success text-xs">Copied</span> : <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>}</button>
                         </td>
-                        <td>{s.name ?? "—"}</td>
-                        <td>{s.phone ?? "—"}</td>
-                        <td>
+                        <td className="subscribers-td">{s.name ?? "—"}</td>
+                        <td className="subscribers-td subscribers-td-phone">{s.phone ?? "—"}</td>
+                        <td className="subscribers-td">
                           <Badge variant={s.status === "active" ? "active" : "draft"}>{s.status}</Badge>
-                          {isNew && <span className="ml-1.5 rounded bg-success/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-success">New</span>}
+                          {isNew && <span className="subscribers-new-badge">New</span>}
                         </td>
-                        <td className="tabular-nums text-muted-dim">{formatRelative(s.created_at)}</td>
-                        <td className="cell-actions">
+                        <td className="subscribers-td subscribers-td-date">{formatRelative(s.created_at)}</td>
+                        <td className="subscribers-td subscribers-td-actions">
+                          <Link href={`/subscribers/profile?id=${s.id}`} className="subscribers-action-link">View</Link>
                           <Button variant="danger" size="sm" type="button" onClick={() => setDeleteConfirm({ id: s.id, email: s.email })}>Delete</Button>
                         </td>
                       </tr>
@@ -846,12 +869,12 @@ function SubscribersPageInner() {
             </div>
 
             <div className="subscribers-pagination-wrap">
-              <span className="text-sm text-muted">
+              <span className="subscribers-pagination-info">
                 Page {page + 1} of {totalPages} · {filteredList.length} subscriber{filteredList.length !== 1 ? "s" : ""}
               </span>
-              <nav className="flex items-center gap-2" aria-label="Pagination">
-                <button type="button" className="dash-pagination-btn" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Previous</button>
-                <button type="button" className="dash-pagination-btn" disabled={page >= totalPages - 1} onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}>Next</button>
+              <nav className="subscribers-pagination-nav" aria-label="Pagination">
+                <button type="button" className="subscribers-page-btn" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Previous</button>
+                <button type="button" className="subscribers-page-btn" disabled={page >= totalPages - 1} onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}>Next</button>
               </nav>
             </div>
           </>

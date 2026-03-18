@@ -8,7 +8,14 @@ from app.database import get_db
 from app.models.form import Form, FormSubmission
 from app.models.subscriber import Subscriber, SubscriberStatus
 from app.models.group import SubscriberGroup
-from app.schemas.form import FormCreate, FormUpdate, FormResponse, FormSubmitPublic
+from app.schemas.form import (
+    FormCreate,
+    FormUpdate,
+    FormResponse,
+    FormSubmitPublic,
+    FormSubmissionResponse,
+    FormPublicResponse,
+)
 from app.services.automation_service import (
     run_automation_for_subscriber,
     trigger_automations_for_new_subscriber,
@@ -94,6 +101,48 @@ def get_form(form_id: int, db: Session = Depends(get_db)):
         trigger_automation_id=form.trigger_automation_id,
         created_at=form.created_at,
         submission_count=count,
+    )
+
+
+@router.get("/{form_id}/submissions", response_model=List[FormSubmissionResponse])
+def list_form_submissions(form_id: int, db: Session = Depends(get_db)):
+    form = db.query(Form).filter(Form.id == form_id).first()
+    if not form:
+        raise HTTPException(status_code=404, detail="Form not found")
+    rows = (
+        db.query(FormSubmission, Subscriber.email, Subscriber.name)
+        .outerjoin(Subscriber, Subscriber.id == FormSubmission.subscriber_id)
+        .filter(FormSubmission.form_id == form_id)
+        .order_by(FormSubmission.created_at.desc())
+        .all()
+    )
+    return [
+        FormSubmissionResponse(
+            id=s.id,
+            form_id=s.form_id,
+            subscriber_id=s.subscriber_id,
+            email=email,
+            name=name,
+            payload=s.payload or {},
+            created_at=s.created_at,
+        )
+        for s, email, name in rows
+    ]
+
+
+@router.get("/{form_id}/public", response_model=FormPublicResponse)
+def get_form_public(form_id: int, db: Session = Depends(get_db)):
+    """Public endpoint: form config for embedding (no auth)."""
+    form = db.query(Form).filter(Form.id == form_id).first()
+    if not form:
+        raise HTTPException(status_code=404, detail="Form not found")
+    return FormPublicResponse(
+        id=form.id,
+        name=form.name,
+        form_type=form.form_type,
+        fields=form.fields,
+        success_message=form.success_message,
+        redirect_url=form.redirect_url,
     )
 
 

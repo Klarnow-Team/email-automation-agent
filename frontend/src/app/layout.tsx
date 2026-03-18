@@ -11,20 +11,20 @@ export const metadata: Metadata = {
   },
 };
 
+const themeScript = `try{var s=localStorage.getItem("sidebar-collapsed");document.body.dataset.sidebarCollapsed=s==="true"?"true":"false";var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="antialiased">
+    <html lang="en" suppressHydrationWarning data-theme="dark">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className="antialiased" suppressHydrationWarning>
         <Preloader />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{var s=localStorage.getItem("sidebar-collapsed");document.body.dataset.sidebarCollapsed=s==="true"?"true":"false";var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}`,
-          }}
-        />
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>
