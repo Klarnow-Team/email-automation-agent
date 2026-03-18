@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { formsApi, groupsApi, automationsApi, type Form, type Group, type Automation } from "@/lib/api";
+import { formsApi, groupsApi, automationsApi, type Form, type FormSubmission, type Group, type Automation } from "@/lib/api";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
+import { Button, Modal } from "@/components/ui";
+import { FormBuilder, type FormBuilderForm } from "./FormBuilder";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const base = API_BASE.replace(/\/$/, "") || "";
@@ -20,6 +22,17 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
+function embedSnippets(formId: number) {
+  const submitUrl = `${base}/api/forms/${formId}/submit`;
+  const formOrigin = typeof window !== "undefined" ? window.location.origin : base.replace(/\/api$/, "") || base;
+  const formPageUrl = `${formOrigin}/forms/embed/${formId}`;
+  return {
+    url: submitUrl,
+    html: `<!-- Form submit endpoint -->\n<form action="${submitUrl}" method="POST">\n  <input type="email" name="email" required placeholder="Email" />\n  <input type="text" name="name" placeholder="Name" />\n  <button type="submit">Subscribe</button>\n</form>`,
+    iframe: `<iframe src="${formPageUrl}" width="100%" height="400" frameborder="0" title="Subscribe form"></iframe>`,
+  };
+}
+
 export default function FormsPage() {
   const [list, setList] = useState<Form[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -27,19 +40,16 @@ export default function FormsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [name, setName] = useState("");
-  const [formType, setFormType] = useState("embed");
-  const [successMessageField, setSuccessMessageField] = useState("");
-  const [redirectUrl, setRedirectUrl] = useState("");
-  const [addToGroupId, setAddToGroupId] = useState<number | null>(null);
-  const [triggerAutomationId, setTriggerAutomationId] = useState<number | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [showBuilder, setShowBuilder] = useState(false);
+  const [formForBuilder, setFormForBuilder] = useState<Form | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string } | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [copyUrlId, setCopyUrlId] = useState<number | null>(null);
+  const [embedModal, setEmbedModal] = useState<Form | null>(null);
+  const [submissionsModalForm, setSubmissionsModalForm] = useState<Form | null>(null);
+  const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
+  const [submissionsLoading, setSubmissionsLoading] = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const load = useCallback(() => {
@@ -59,71 +69,87 @@ export default function FormsPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!submissionsModalForm) {
+      setSubmissions([]);
+      return;
+    }
+    setSubmissionsLoading(true);
+    formsApi
+      .getSubmissions(submissionsModalForm.id)
+      .then(setSubmissions)
+      .catch(() => setSubmissions([]))
+      .finally(() => setSubmissionsLoading(false));
+  }, [submissionsModalForm]);
+
   const filteredList = list.filter((f) =>
     searchQuery.trim() ? f.name.toLowerCase().includes(searchQuery.trim().toLowerCase()) : true
   );
 
-  const openEdit = (f: Form) => {
-    setEditingId(f.id);
-    setName(f.name);
-    setFormType(f.form_type || "embed");
-    setSuccessMessageField(f.success_message || "");
-    setRedirectUrl(f.redirect_url || "");
-    setAddToGroupId(f.add_to_group_id ?? null);
-    setTriggerAutomationId(f.trigger_automation_id ?? null);
-    setShowForm(true);
+  const openCreate = () => {
+    setFormForBuilder(null);
+    setShowBuilder(true);
   };
 
-  const closeForm = () => {
-    setShowForm(false);
-    setEditingId(null);
-    setName("");
-    setFormType("embed");
-    setSuccessMessageField("");
-    setRedirectUrl("");
-    setAddToGroupId(null);
-    setTriggerAutomationId(null);
+  const openEdit = async (f: Form) => {
+    const full = await formsApi.get(f.id);
+    setFormForBuilder(full);
+    setShowBuilder(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmedName = name.trim();
-    if (!trimmedName || creating || saving) return;
-    setError(null);
-    const payload = {
-      name: trimmedName,
-      form_type: formType,
-      success_message: successMessageField || null,
-      redirect_url: redirectUrl.trim() || null,
-      add_to_group_id: addToGroupId,
-      trigger_automation_id: triggerAutomationId,
-    };
-    if (editingId != null) {
-      setSaving(true);
-      formsApi
-        .update(editingId, payload)
-        .then(() => {
-          closeForm();
-          load();
-          setSuccessMessage("Form updated.");
-          setTimeout(() => setSuccessMessage(null), 4000);
-        })
-        .catch((e) => setError(e instanceof Error ? e.message : "Failed to update"))
-        .finally(() => setSaving(false));
-    } else {
-      setCreating(true);
-      formsApi
-        .create(payload)
-        .then(() => {
-          closeForm();
-          load();
-          setSuccessMessage("Form created. Use the submit URL to collect signups.");
-          setTimeout(() => setSuccessMessage(null), 5000);
-        })
-        .catch((e) => setError(e instanceof Error ? e.message : "Failed to create"))
-        .finally(() => setCreating(false));
-    }
-  };
+  const handleBuilderSave = useCallback(
+    async (data: FormBuilderForm) => {
+      setError(null);
+      const payload = {
+        name: data.name,
+        form_type: data.form_type,
+        fields: data.fields,
+        success_message: data.success_message || null,
+        redirect_url: data.redirect_url.trim() || null,
+        add_to_group_id: data.add_to_group_id,
+        trigger_automation_id: data.trigger_automation_id,
+      };
+      if (formForBuilder) {
+        await formsApi.update(formForBuilder.id, payload);
+        setSuccessMessage("Form updated.");
+      } else {
+        await formsApi.create(payload);
+        setSuccessMessage("Form created.");
+      }
+      setShowBuilder(false);
+      setFormForBuilder(null);
+      load();
+      setTimeout(() => setSuccessMessage(null), 4000);
+    },
+    [formForBuilder, load]
+  );
+
+  const handleDuplicate = useCallback(
+    async (f: Form) => {
+      setDuplicatingId(f.id);
+      setError(null);
+      try {
+        const full = await formsApi.get(f.id);
+        await formsApi.create({
+          name: `Copy of ${full.name}`,
+          form_type: full.form_type,
+          fields: full.fields ?? [],
+          success_message: full.success_message ?? null,
+          redirect_url: full.redirect_url ?? null,
+          add_to_group_id: full.add_to_group_id ?? null,
+          trigger_automation_id: full.trigger_automation_id ?? null,
+        });
+        setSuccessMessage("Form duplicated.");
+        load();
+        setTimeout(() => setSuccessMessage(null), 4000);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Duplicate failed");
+      } finally {
+        setDuplicatingId(null);
+      }
+    },
+    [load]
+  );
 
   const handleDeleteConfirm = () => {
     if (!deleteConfirm) return;
@@ -174,28 +200,25 @@ export default function FormsPage() {
       <header className="page-header animate-in">
         <div>
           <h1 className="page-title">Forms</h1>
-          <p className="page-subtitle">Create forms to collect subscribers; use the submit URL in your site or app</p>
+          <p className="page-subtitle">Build subscription forms, collect subscribers, and trigger automations</p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            if (showForm) closeForm();
-            else {
-              setEditingId(null);
-              setName("");
-              setFormType("embed");
-              setSuccessMessageField("");
-              setRedirectUrl("");
-              setAddToGroupId(null);
-              setTriggerAutomationId(null);
-              setShowForm(true);
-            }
-          }}
-          className="btn-primary"
-        >
-          {showForm ? "Cancel" : "Create form"}
-        </button>
+        {!showBuilder && (
+          <Button onClick={openCreate}>Create form</Button>
+        )}
       </header>
+
+      {showBuilder && (
+        <FormBuilder
+          form={formForBuilder}
+          groups={groups}
+          automations={automations}
+          onSave={handleBuilderSave}
+          onCancel={() => {
+            setShowBuilder(false);
+            setFormForBuilder(null);
+          }}
+        />
+      )}
 
       <section className="rounded-xl border border-(--card-border) bg-(--card-bg-subtle) p-4 mb-4">
         <h2 className="text-sm font-semibold text-foreground mb-2">How forms work</h2>
@@ -229,88 +252,8 @@ export default function FormsPage() {
         </div>
       )}
 
-      {showForm && (
-        <div className="section-card add-card animate-in">
-          <h2 className="section-title">{editingId != null ? "Edit form" : "Create form"}</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="field-label">Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="input-glass w-full max-w-md"
-                placeholder="e.g. Newsletter signup"
-                required
-              />
-            </div>
-            <div>
-              <label className="field-label">Form type</label>
-              <select value={formType} onChange={(e) => setFormType(e.target.value)} className="input-glass select-glass max-w-xs">
-                <option value="embed">Embed</option>
-                <option value="popup">Popup</option>
-                <option value="slide_in">Slide-in</option>
-                <option value="landing">Landing</option>
-              </select>
-            </div>
-            <div>
-              <label className="field-label">Success message (optional)</label>
-              <input
-                type="text"
-                value={successMessageField}
-                onChange={(e) => setSuccessMessageField(e.target.value)}
-                className="input-glass w-full max-w-md"
-                placeholder="e.g. Thank you for subscribing!"
-              />
-            </div>
-            <div>
-              <label className="field-label">Redirect URL after submit (optional)</label>
-              <input
-                type="url"
-                value={redirectUrl}
-                onChange={(e) => setRedirectUrl(e.target.value)}
-                className="input-glass w-full max-w-md"
-                placeholder="https://..."
-              />
-            </div>
-            <div>
-              <label className="field-label">Add to group (optional)</label>
-              <select
-                value={addToGroupId ?? ""}
-                onChange={(e) => setAddToGroupId(e.target.value === "" ? null : Number(e.target.value))}
-                className="input-glass select-glass max-w-xs"
-              >
-                <option value="">— None —</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="field-label">Trigger automation (optional)</label>
-              <select
-                value={triggerAutomationId ?? ""}
-                onChange={(e) => setTriggerAutomationId(e.target.value === "" ? null : Number(e.target.value))}
-                className="input-glass select-glass max-w-xs"
-              >
-                <option value="">— None —</option>
-                {automations.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-2">
-              <button type="submit" className="btn-primary" disabled={creating || saving}>
-                {creating ? "Creating…" : saving ? "Saving…" : editingId != null ? "Save changes" : "Create form"}
-              </button>
-              {editingId != null && (
-                <button type="button" onClick={closeForm} className="btn-ghost">Cancel</button>
-              )}
-            </div>
-          </form>
-        </div>
-      )}
-
+      {!showBuilder && (
+        <>
       {deleteConfirm && (
         <div
           className="modal-backdrop"
@@ -383,8 +326,13 @@ export default function FormsPage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    <button type="button" onClick={() => openEdit(f)} className="btn-ghost text-sm text-(--accent) hover:bg-[rgba(var(--accent-rgb),0.12)]">Edit</button>
-                    <button type="button" onClick={() => setDeleteConfirm({ id: f.id, name: f.name })} className="btn-danger text-sm py-1.5 px-2.5">Delete</button>
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(f)}>Edit</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setSubmissionsModalForm(f)}>View submissions</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setEmbedModal(f)}>Embed code</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDuplicate(f)} disabled={duplicatingId === f.id}>
+                      {duplicatingId === f.id ? "Copying…" : "Duplicate"}
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={() => setDeleteConfirm({ id: f.id, name: f.name })}>Delete</Button>
                   </div>
                 </div>
               </div>
@@ -392,6 +340,98 @@ export default function FormsPage() {
           </div>
         )}
       </section>
+
+      {/* Embed code modal */}
+      <Modal
+        open={!!embedModal}
+        onClose={() => setEmbedModal(null)}
+        title="Embed form"
+        footer={<Button variant="secondary" size="sm" onClick={() => setEmbedModal(null)}>Close</Button>}
+      >
+        {embedModal && (() => {
+          const { url, html, iframe } = embedSnippets(embedModal.id);
+          const copy = (text: string) => {
+            navigator.clipboard.writeText(text);
+            setCopyUrlId(embedModal.id);
+            setTimeout(() => setCopyUrlId(null), 2000);
+          };
+          return (
+            <div className="space-y-4 text-sm">
+              <div>
+                <p className="mb-1 font-medium text-foreground">Submit URL (POST)</p>
+                <div className="flex gap-2">
+                  <code className="flex-1 truncate rounded-lg bg-(--card-bg-subtle) px-3 py-2 text-xs">{url}</code>
+                  <Button variant="ghost" size="sm" onClick={() => copy(url)}>{copyUrlId === embedModal.id ? "Copied!" : "Copy"}</Button>
+                </div>
+              </div>
+              <div>
+                <p className="mb-1 font-medium text-foreground">HTML form</p>
+                <pre className="max-h-32 overflow-auto rounded-lg border border-(--card-border) bg-(--card-bg-subtle) p-3 text-xs whitespace-pre-wrap">{html}</pre>
+                <Button variant="ghost" size="sm" className="mt-2" onClick={() => copy(html)}>Copy HTML</Button>
+              </div>
+              <div>
+                <p className="mb-1 font-medium text-foreground">iframe</p>
+                <pre className="max-h-24 overflow-auto rounded-lg border border-(--card-border) bg-(--card-bg-subtle) p-3 text-xs whitespace-pre-wrap">{iframe}</pre>
+                <Button variant="ghost" size="sm" className="mt-2" onClick={() => copy(iframe)}>Copy iframe</Button>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
+
+      {/* Submissions modal */}
+      <Modal
+        open={!!submissionsModalForm}
+        onClose={() => setSubmissionsModalForm(null)}
+        title={submissionsModalForm ? `Submissions: ${submissionsModalForm.name}` : "Submissions"}
+        footer={<Button variant="secondary" size="sm" onClick={() => setSubmissionsModalForm(null)}>Close</Button>}
+      >
+        {submissionsModalForm && (
+          <div className="text-sm">
+            {submissionsLoading ? (
+              <p className="text-muted">Loading…</p>
+            ) : submissions.length === 0 ? (
+              <p className="text-muted">No submissions yet.</p>
+            ) : (
+              <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
+                <table className="w-full border-collapse">
+                  <thead className="sticky top-0 bg-(--card-bg) border-b border-(--card-border)">
+                    <tr>
+                      <th className="text-left py-2 px-2 font-medium text-foreground">Email</th>
+                      <th className="text-left py-2 px-2 font-medium text-foreground">Name</th>
+                      <th className="text-left py-2 px-2 font-medium text-foreground">Submitted</th>
+                      <th className="text-left py-2 px-2 font-medium text-foreground">Data</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {submissions.map((s) => (
+                      <tr key={s.id} className="border-b border-(--card-border) last:border-0">
+                        <td className="py-2 px-2">{s.email ?? "—"}</td>
+                        <td className="py-2 px-2">{s.name ?? "—"}</td>
+                        <td className="py-2 px-2 text-muted">{formatDate(s.created_at)}</td>
+                        <td className="py-2 px-2">
+                          {Object.keys(s.payload).filter((k) => k !== "email" && k !== "name").length > 0 ? (
+                            <span className="text-muted" title={JSON.stringify(s.payload)}>
+                              {Object.entries(s.payload)
+                                .filter(([k]) => k !== "email" && k !== "name")
+                                .map(([k, v]) => `${k}: ${String(v)}`)
+                                .join(", ")}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+        </>
+      )}
     </div>
   );
 }

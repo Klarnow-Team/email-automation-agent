@@ -12,6 +12,7 @@ import {
 } from "@/lib/api";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { Button, Modal } from "@/components/ui";
+import { WorkflowBuilder } from "./WorkflowBuilder";
 
 type StatusFilter = "all" | "active" | "paused";
 
@@ -105,6 +106,8 @@ export default function AutomationsPage() {
   const [rollingBackId, setRollingBackId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [showBuilder, setShowBuilder] = useState(false);
+  const [automationForBuilder, setAutomationForBuilder] = useState<Automation | null>(null);
   const loadInProgressRef = useRef(false);
 
   const load = useCallback(() => {
@@ -181,25 +184,47 @@ export default function AutomationsPage() {
   }, [list, statusFilter, searchQuery]);
 
   const openEdit = (a: Automation) => {
-    setEditingId(a.id);
-    setName(a.name);
-    setSteps(
-      [...a.steps].sort((x, y) => x.order - y.order).map((s) => ({
-        order: s.order,
-        step_type: s.step_type,
-        payload: s.payload ?? {},
-      }))
-    );
-    setShowForm(true);
+    setAutomationForBuilder(a);
+    setShowBuilder(true);
   };
 
-  const closeForm = () => {
-    setShowForm(false);
-    setEditingId(null);
-    setName("");
-    setSteps([]);
-    setTriggerType("subscriber_added");
+  const openCreate = () => {
+    setAutomationForBuilder(null);
+    setShowBuilder(true);
   };
+
+  const handleBuilderSave = useCallback(
+    async (params: {
+      name: string;
+      trigger_type: string;
+      trigger_config: Record<string, unknown>;
+      steps: { order: number; step_type: string; payload?: Record<string, unknown> }[];
+    }) => {
+      if (automationForBuilder) {
+        await automationsApi.update(automationForBuilder.id, {
+          name: params.name,
+          trigger_type: params.trigger_type,
+          trigger_config: params.trigger_config,
+          steps: params.steps,
+        });
+        setSuccessMessage("Automation updated.");
+      } else {
+        await automationsApi.create({
+          name: params.name,
+          trigger_type: params.trigger_type,
+          trigger_config: params.trigger_config,
+          is_active: true,
+          steps: params.steps,
+        });
+        setSuccessMessage("Automation created.");
+      }
+      setShowBuilder(false);
+      setAutomationForBuilder(null);
+      load();
+      setTimeout(() => setSuccessMessage(null), 4000);
+    },
+    [automationForBuilder, load]
+  );
 
   const addStep = (type: "email" | "delay") => {
     setSteps((prev) => [
@@ -325,22 +350,24 @@ export default function AutomationsPage() {
             Send a series of emails automatically when something happens (e.g. welcome series when someone subscribes).
           </p>
         </div>
-        <Button
-          onClick={() => {
-            if (showForm) closeForm();
-            else {
-              setEditingId(null);
-              setName("");
-              setSteps([]);
-              setTriggerType("subscriber_added");
-              setShowForm(true);
-            }
-          }}
-        >
-          {showForm ? "Cancel" : "Create automation"}
-        </Button>
+        {!showBuilder && (
+          <Button onClick={openCreate}>Create automation</Button>
+        )}
       </header>
 
+      {showBuilder && (
+        <WorkflowBuilder
+          automation={automationForBuilder}
+          onSave={handleBuilderSave}
+          onCancel={() => {
+            setShowBuilder(false);
+            setAutomationForBuilder(null);
+          }}
+        />
+      )}
+
+      {!showBuilder && (
+        <>
       {/* How automations work + worker tip */}
       <section className="rounded-xl border border-(--card-border) bg-(--card-bg-subtle) p-4 mb-4">
         <h2 className="text-sm font-semibold text-foreground mb-2">How automations work</h2>
@@ -792,6 +819,8 @@ export default function AutomationsPage() {
           </div>
         )}
       </section>
+        </>
+      )}
     </div>
   );
 }

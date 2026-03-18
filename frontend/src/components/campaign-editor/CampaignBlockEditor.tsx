@@ -21,8 +21,32 @@ export type Block = {
 
 type Align = "left" | "center" | "right";
 
+/** Style variants per block type (stored in props.style). */
+export const NAVIGATION_STYLES = [
+  { id: "minimal", label: "Minimal" },
+  { id: "centered", label: "Centered" },
+  { id: "bordered", label: "Bordered" },
+  { id: "dark", label: "Dark bar" },
+] as const;
+export const HERO_STYLES = [
+  { id: "minimal", label: "Minimal" },
+  { id: "card", label: "Card" },
+  { id: "fullWidth", label: "Full width" },
+] as const;
+export const BUTTON_STYLES = [
+  { id: "primary", label: "Primary" },
+  { id: "outline", label: "Outline" },
+  { id: "text", label: "Text link" },
+] as const;
+export const DIVIDER_STYLES = [
+  { id: "line", label: "Line" },
+  { id: "dotted", label: "Dotted" },
+  { id: "spaced", label: "Spaced" },
+] as const;
+
 const BLOCK_DEFAULTS: Record<BlockType, Record<string, unknown>> = {
   navigation: {
+    style: "minimal",
     logoType: "text" as "text" | "image",
     logoText: "Your Brand",
     logoUrl: "",
@@ -33,6 +57,7 @@ const BLOCK_DEFAULTS: Record<BlockType, Record<string, unknown>> = {
     align: "center" as Align,
   },
   hero: {
+    style: "minimal",
     heading: "Welcome to our newsletter",
     subtext: "Here's what's new this week.",
     buttonText: "Learn more",
@@ -55,6 +80,7 @@ const BLOCK_DEFAULTS: Record<BlockType, Record<string, unknown>> = {
     ],
   },
   button: {
+    style: "primary",
     text: "Click here",
     url: "#",
     align: "center" as Align,
@@ -65,7 +91,7 @@ const BLOCK_DEFAULTS: Record<BlockType, Record<string, unknown>> = {
     imageAlt: "Image",
     align: "left" as Align,
   },
-  divider: { align: "center" as Align },
+  divider: { style: "line", align: "center" as Align },
   spacer: { height: 24 },
   gallery: {
     align: "center" as Align,
@@ -218,184 +244,179 @@ function genId() {
 const BASE_CELL_STYLE =
   "padding: 16px 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 16px; line-height: 1.5; color: #1f2937;";
 
-function blocksToHtml(blocks: Block[]): string {
-  const parts: string[] = [];
-  const containerStyle = 'style="max-width: 600px; margin: 0 auto;"';
+const containerStyle = 'style="max-width: 600px; margin: 0 auto;"';
 
-  for (const b of blocks) {
-    switch (b.type) {
-      case "navigation": {
-        const logoType = (b.props.logoType as "text" | "image") || "text";
-        const logoText = (b.props.logoText as string) || "Brand";
-        const logoUrl = (b.props.logoUrl as string) || "";
-        const links = (b.props.links as { text: string; url: string }[]) || [];
-        const align = (b.props.align as Align) || "center";
-        const linkItems = links
-          .filter((l) => (l.text || "").trim())
-          .map((l) => {
-            const label = escapeHtml((l.text || "").trim());
-            const url = (l.url || "").trim();
-            if (url) {
-              return `<a href="${escapeHtml(url)}" style="color: #6366f1; text-decoration: none; font-size: 14px;">${label}</a>`;
-            }
-            return `<span style="font-size: 14px; color: #6b7280;">${label}</span>`;
-          })
-          .join(" &nbsp;·&nbsp; ");
-        const isSvg = /\.svg(\?|$)/i.test(logoUrl);
-        const logoImgStyle = isSvg
-          ? "max-width: 180px; width: 180px; height: auto; display: block; border: 0;"
-          : "max-width: 180px; height: auto; display: block; border: 0;";
-        const logoHtml =
-          logoType === "image" && logoUrl
-            ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(logoText || "Logo")}" style="${logoImgStyle}" ${isSvg ? 'width="180"' : ""} />`
-            : `<strong style="font-size: 18px; letter-spacing: -0.02em;">${escapeHtml(logoText || "Brand")}</strong>`;
-        const hasLinks = linkItems.length > 0;
-        const tdStyle = `style="${BASE_CELL_STYLE} text-align: ${align}; padding: 20px 24px;"`;
-        parts.push(`
+/** Renders a single block to HTML (used for builder preview and full output). */
+export function blockToHtml(b: Block): string {
+  switch (b.type) {
+    case "navigation": {
+      const style = (b.props.style as string) || "minimal";
+      const logoType = (b.props.logoType as "text" | "image") || "text";
+      const logoText = (b.props.logoText as string) || "Brand";
+      const logoUrl = (b.props.logoUrl as string) || "";
+      const links = (b.props.links as { text: string; url: string }[]) || [];
+      const align = (b.props.align as Align) || "center";
+      const linkColor = style === "dark" ? "#e5e7eb" : "#6366f1";
+      const linkItems = links
+        .filter((l) => (l.text || "").trim())
+        .map((l) => {
+          const label = escapeHtml((l.text || "").trim());
+          const url = (l.url || "").trim();
+          if (url) {
+            return `<a href="${escapeHtml(url)}" style="color: ${linkColor}; text-decoration: none; font-size: 14px;">${label}</a>`;
+          }
+          return `<span style="font-size: 14px; color: ${style === "dark" ? "#9ca3af" : "#6b7280"};">${label}</span>`;
+        })
+        .join(" &nbsp;·&nbsp; ");
+      const isSvg = /\.svg(\?|$)/i.test(logoUrl);
+      const logoImgStyle = isSvg
+        ? "max-width: 180px; width: 180px; height: auto; display: block; border: 0;"
+        : "max-width: 180px; height: auto; display: block; border: 0;";
+      const logoHtml =
+        logoType === "image" && logoUrl
+          ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(logoText || "Logo")}" style="${logoImgStyle}" ${isSvg ? 'width="180"' : ""} />`
+          : `<strong style="font-size: 18px; letter-spacing: -0.02em; color: ${style === "dark" ? "#fff" : "inherit"};">${escapeHtml(logoText || "Brand")}</strong>`;
+      const hasLinks = linkItems.length > 0;
+      const isDark = style === "dark";
+      const bg = isDark ? "background: #1f2937;" : "";
+      const borderBottom = style === "bordered" ? "border-bottom: 1px solid #e5e7eb;" : "";
+      const pad = style === "centered" ? "24px 24px" : style === "dark" ? "16px 24px" : "20px 24px";
+      const tdStyle = `style="${BASE_CELL_STYLE} text-align: ${align}; padding: ${pad}; ${bg} ${borderBottom}"`;
+      return `
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ${containerStyle}>
             <tr><td ${tdStyle}>
               <div style="margin-bottom: ${hasLinks ? "12px" : "0"};">${logoHtml}</div>
               ${hasLinks ? `<div style="font-size: 14px; line-height: 1.6;">${linkItems}</div>` : ""}
             </td></tr>
-          </table>`);
-        break;
-      }
-      case "hero": {
-        const heading = (b.props.heading as string) || "";
-        const subtext = (b.props.subtext as string) || "";
-        const btnText = (b.props.buttonText as string) || "";
-        const btnUrl = (b.props.buttonUrl as string) || "#";
-        const imgUrl = (b.props.imageUrl as string) || "";
-        const align = (b.props.align as Align) || "center";
-        const tdStyle = `style="${BASE_CELL_STYLE} text-align: ${align}; padding: 32px 24px;"`;
-        parts.push(`
+          </table>`;
+    }
+    case "hero": {
+      const style = (b.props.style as string) || "minimal";
+      const heading = (b.props.heading as string) || "";
+      const subtext = (b.props.subtext as string) || "";
+      const btnText = (b.props.buttonText as string) || "";
+      const btnUrl = (b.props.buttonUrl as string) || "#";
+      const imgUrl = (b.props.imageUrl as string) || "";
+      const align = (b.props.align as Align) || "center";
+      const cardWrap = style === "card" ? "background: #f9fafb; border-radius: 12px; padding: 28px 24px;" : "";
+      const fullWidth = style === "fullWidth" ? "max-width: 100%;" : "";
+      const tdStyle = `style="${BASE_CELL_STYLE} text-align: ${align}; padding: 32px 24px; ${cardWrap} ${fullWidth}"`;
+      const btnStyle = "display: inline-block; padding: 12px 24px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600;";
+      return `
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ${containerStyle}>
             <tr><td ${tdStyle}>
               ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="" style="max-width: 100%; height: auto; border-radius: 8px; margin-bottom: 20px;" />` : ""}
               <h1 style="margin: 0 0 12px; font-size: 28px; font-weight: 700;">${escapeHtml(heading)}</h1>
               <p style="margin: 0 0 20px; color: #6b7280; font-size: 16px;">${escapeHtml(subtext)}</p>
-              ${btnText ? `<a href="${escapeHtml(btnUrl)}" style="display: inline-block; padding: 12px 24px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600;">${escapeHtml(btnText)}</a>` : ""}
+              ${btnText ? `<a href="${escapeHtml(btnUrl)}" style="${btnStyle}">${escapeHtml(btnText)}</a>` : ""}
             </td></tr>
-          </table>`);
-        break;
-      }
-      case "section": {
-        const columnCount = Math.min(
-          3,
-          Math.max(1, Number(b.props.columnCount) || 1),
-        );
-        const heading = (b.props.heading as string) || "";
-        const align = (b.props.align as Align) || "left";
-        const columns =
-          (b.props.columns as {
-            heading?: string;
-            content: string;
-            imageUrl?: string;
-            buttonText?: string;
-            buttonUrl?: string;
-          }[]) || [];
-        const widthPct = Math.floor(100 / columnCount);
-        const cellStyleCol = `style="${BASE_CELL_STYLE} padding: 16px 12px; vertical-align: top; width: ${widthPct}%; text-align: ${align};"`;
-        const cells = Array.from({ length: columnCount }, (_, i) => {
-          const col = columns[i] || {
-            heading: "",
-            content: "",
-            imageUrl: "",
-            buttonText: "",
-            buttonUrl: "",
-          };
-          const contentHtml = (col.content || "").replace(/\n/g, "</p><p>");
-          const img = (col.imageUrl as string)?.trim();
-          const btn = (col.buttonText as string)?.trim();
-          const btnUrl = (col.buttonUrl as string) || "#";
-          return `<td ${cellStyleCol}>
+          </table>`;
+    }
+    case "button": {
+      const style = (b.props.style as string) || "primary";
+      const text = (b.props.text as string) || "Button";
+      const url = (b.props.url as string) || "#";
+      const align = (b.props.align as Align) || "center";
+      const tdStyle = `style="${BASE_CELL_STYLE} text-align: ${align};"`;
+      const btnStyle =
+        style === "outline"
+          ? "display: inline-block; padding: 12px 28px; background: transparent; color: #6366f1; text-decoration: none; border-radius: 8px; font-weight: 600; border: 2px solid #6366f1;"
+          : style === "text"
+            ? "display: inline-block; padding: 0; background: transparent; color: #6366f1; text-decoration: underline; font-weight: 600;"
+            : "display: inline-block; padding: 12px 28px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600;";
+      return `
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ${containerStyle}>
+            <tr><td ${tdStyle}>
+              <a href="${escapeHtml(url)}" style="${btnStyle}">${escapeHtml(text)}</a>
+            </td></tr>
+          </table>`;
+    }
+    case "divider": {
+      const style = (b.props.style as string) || "line";
+      const align = (b.props.align as Align) || "center";
+      const alignStyle =
+        align === "center" ? "margin: 0 auto" : align === "right" ? "margin: 0 0 0 auto" : "margin: 0";
+      const tdStyle = `style="${BASE_CELL_STYLE} text-align: ${align};"`;
+      const hrStyle =
+        style === "dotted"
+          ? `border: none; border-top: 2px dotted #d1d5db; ${alignStyle}; max-width: 100%;`
+          : style === "spaced"
+            ? `border: none; margin: 24px auto; max-width: 100%; height: 0;`
+            : `border: none; border-top: 1px solid #e5e7eb; ${alignStyle}; max-width: 100%;`;
+      return `
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ${containerStyle}>
+            <tr><td ${tdStyle}><hr style="${hrStyle}" /></td></tr>
+          </table>`;
+    }
+    case "section": {
+      const columnCount = Math.min(3, Math.max(1, Number(b.props.columnCount) || 1));
+      const heading = (b.props.heading as string) || "";
+      const align = (b.props.align as Align) || "left";
+      const columns = (b.props.columns as { heading?: string; content: string; imageUrl?: string; buttonText?: string; buttonUrl?: string }[]) || [];
+      const widthPct = Math.floor(100 / columnCount);
+      const cellStyleCol = `style="${BASE_CELL_STYLE} padding: 16px 12px; vertical-align: top; width: ${widthPct}%; text-align: ${align};"`;
+      const cells = Array.from({ length: columnCount }, (_, i) => {
+        const col = columns[i] || { heading: "", content: "", imageUrl: "", buttonText: "", buttonUrl: "" };
+        const contentHtml = (col.content || "").replace(/\n/g, "</p><p>");
+        const img = (col.imageUrl as string)?.trim();
+        const btn = (col.buttonText as string)?.trim();
+        const btnUrl = (col.buttonUrl as string) || "#";
+        return `<td ${cellStyleCol}>
             ${(col.heading as string) ? `<h3 style="margin: 0 0 8px; font-size: 18px;">${escapeHtml(String(col.heading))}</h3>` : ""}
             ${img ? `<img src="${escapeHtml(img)}" alt="" style="max-width: 100%; height: auto; border-radius: 8px; margin-bottom: 12px;" />` : ""}
             <p style="margin: 0 0 12px;">${escapeHtml(contentHtml)}</p>
             ${btn ? `<a href="${escapeHtml(btnUrl)}" style="display: inline-block; padding: 10px 20px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">${escapeHtml(btn)}</a>` : ""}
           </td>`;
-        }).join("");
-        const headingTdStyle = `style="${BASE_CELL_STYLE} text-align: ${align};"`;
-        const headingAlign = `style="margin: 0 0 16px; font-size: 22px; text-align: ${align};"`;
-        parts.push(`
+      }).join("");
+      const headingTdStyle = `style="${BASE_CELL_STYLE} text-align: ${align};"`;
+      const headingAlign = `style="margin: 0 0 16px; font-size: 22px; text-align: ${align};"`;
+      return `
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ${containerStyle}>
             ${heading ? `<tr><td ${headingTdStyle} colspan="${columnCount}"><h2 ${headingAlign}>${escapeHtml(heading)}</h2></td></tr>` : ""}
             <tr>${cells}</tr>
-          </table>`);
-        break;
-      }
-      case "button": {
-        const text = (b.props.text as string) || "Button";
-        const url = (b.props.url as string) || "#";
-        const align = (b.props.align as Align) || "center";
-        const tdStyle = `style="${BASE_CELL_STYLE} text-align: ${align};"`;
-        parts.push(`
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ${containerStyle}>
-            <tr><td ${tdStyle}>
-              <a href="${escapeHtml(url)}" style="display: inline-block; padding: 12px 28px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600;">${escapeHtml(text)}</a>
-            </td></tr>
-          </table>`);
-        break;
-      }
-      case "content": {
-        const html = (b.props.html as string) || "";
-        const imageUrl = (b.props.imageUrl as string) || "";
-        const imageAlt = (b.props.imageAlt as string) || "Image";
-        const align = (b.props.align as Align) || "left";
-        const tdStyle = `style="${BASE_CELL_STYLE} text-align: ${align};"`;
-        parts.push(`
+          </table>`;
+    }
+    case "content": {
+      const html = (b.props.html as string) || "";
+      const imageUrl = (b.props.imageUrl as string) || "";
+      const imageAlt = (b.props.imageAlt as string) || "Image";
+      const align = (b.props.align as Align) || "left";
+      const tdStyle = `style="${BASE_CELL_STYLE} text-align: ${align};"`;
+      return `
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ${containerStyle}>
             <tr><td ${tdStyle}>
               ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(imageAlt)}" style="max-width: 100%; height: auto; border-radius: 8px; margin-bottom: 16px;" />` : ""}
               <div>${html}</div>
             </td></tr>
-          </table>`);
-        break;
-      }
-      case "divider": {
-        const align = (b.props.align as Align) || "center";
-        const alignStyle =
-          align === "center"
-            ? "margin: 0 auto"
-            : align === "right"
-              ? "margin: 0 0 0 auto"
-              : "margin: 0";
-        const tdStyle = `style="${BASE_CELL_STYLE} text-align: ${align};"`;
-        parts.push(`
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ${containerStyle}>
-            <tr><td ${tdStyle}><hr style="border: none; border-top: 1px solid #e5e7eb; ${alignStyle}; max-width: 100%;" /></td></tr>
-          </table>`);
-        break;
-      }
-      case "spacer": {
-        const h = Math.max(0, Number(b.props.height) ?? 24);
-        parts.push(`<div style="height: ${h}px;"></div>`);
-        break;
-      }
-      case "gallery": {
-        const images =
-          (b.props.images as { src: string; alt: string; url: string }[]) || [];
-        const align = (b.props.align as Align) || "center";
-        const cols = 3;
-        const width = Math.floor(100 / cols);
-        const galleryTdStyle = `style="${BASE_CELL_STYLE} text-align: ${align}; width: ${width}%; vertical-align: top;"`;
-        const cells = images
-          .filter((i) => i.src)
-          .map(
-            (i) =>
-              `<td ${galleryTdStyle}><a href="${escapeHtml(i.url || "#")}"><img src="${escapeHtml(i.src)}" alt="${escapeHtml(i.alt || "")}" style="max-width: 100%; height: auto; border-radius: 8px;" /></a></td>`,
-          )
-          .join("");
-        if (cells)
-          parts.push(`
+          </table>`;
+    }
+    case "spacer": {
+      const h = Math.max(0, Number(b.props.height) ?? 24);
+      return `<div style="height: ${h}px;"></div>`;
+    }
+    case "gallery": {
+      const images = (b.props.images as { src: string; alt: string; url: string }[]) || [];
+      const align = (b.props.align as Align) || "center";
+      const cols = 3;
+      const width = Math.floor(100 / cols);
+      const galleryTdStyle = `style="${BASE_CELL_STYLE} text-align: ${align}; width: ${width}%; vertical-align: top;"`;
+      const cells = images
+        .filter((i) => i.src)
+        .map((i) => `<td ${galleryTdStyle}><a href="${escapeHtml(i.url || "#")}"><img src="${escapeHtml(i.src)}" alt="${escapeHtml(i.alt || "")}" style="max-width: 100%; height: auto; border-radius: 8px;" /></a></td>`)
+        .join("");
+      if (!cells) return "";
+      return `
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ${containerStyle}>
             <tr>${cells}</tr>
-          </table>`);
-        break;
-      }
+          </table>`;
     }
+    default:
+      return "";
   }
+}
 
+function blocksToHtml(blocks: Block[]): string {
+  const parts = blocks.map((b) => blockToHtml(b)).filter(Boolean);
   return parts.join("\n").trim() || "<p></p>";
 }
 
@@ -544,16 +565,61 @@ export function CampaignBlockEditor({
     onChange(blocksToHtml(next));
   };
 
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+  const [draggingBlockIndex, setDraggingBlockIndex] = useState<number | null>(null);
+  const [dropSlotIndex, setDropSlotIndex] = useState<number | null>(null);
+
+  const handleDragStartBlock = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.setData("application/x-block-index", String(index));
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(index));
+    setDraggingBlockIndex(index);
+  };
+
+  const handleDragEndBlock = () => {
+    setDraggingBlockIndex(null);
+    setDropSlotIndex(null);
+  };
+
+  const handleDropOnSlot = (e: React.DragEvent, slotIndex: number) => {
     e.preventDefault();
-    const dragIndex = Number(e.dataTransfer.getData("text/plain"));
-    if (Number.isNaN(dragIndex) || dragIndex === dropIndex) return;
-    const next = [...blocks];
-    const [removed] = next.splice(dragIndex, 1);
-    const insertAt = dragIndex < dropIndex ? dropIndex - 1 : dropIndex;
-    next.splice(insertAt, 0, removed);
-    setBlocks(next);
-    onChange(blocksToHtml(next));
+    e.stopPropagation();
+    setDropSlotIndex(null);
+    setDraggingBlockIndex(null);
+    const blockType = e.dataTransfer.getData("application/x-block-type");
+    const dragIndexRaw = e.dataTransfer.getData("application/x-block-index");
+    const dragIndex = dragIndexRaw === "" ? -1 : Number(dragIndexRaw);
+    if (blockType && BLOCK_DEFAULTS[blockType as BlockType]) {
+      const newBlock: Block = {
+        id: genId(),
+        type: blockType as BlockType,
+        props: { ...BLOCK_DEFAULTS[blockType as BlockType] },
+      };
+      const next = [...blocks];
+      next.splice(slotIndex, 0, newBlock);
+      setBlocks(next);
+      onChange(blocksToHtml(next));
+      return;
+    }
+    if (!Number.isNaN(dragIndex) && dragIndex >= 0) {
+      const insertAt = dragIndex < slotIndex ? slotIndex - 1 : slotIndex;
+      if (insertAt === dragIndex) return;
+      const next = [...blocks];
+      const [removed] = next.splice(dragIndex, 1);
+      next.splice(insertAt, 0, removed);
+      setBlocks(next);
+      onChange(blocksToHtml(next));
+    }
+  };
+
+  const handleDragOverSlot = (e: React.DragEvent, slotIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "move";
+    setDropSlotIndex(slotIndex);
+  };
+
+  const handleDragLeaveSlot = () => {
+    setDropSlotIndex(null);
   };
 
   return (
@@ -561,36 +627,58 @@ export function CampaignBlockEditor({
       className={`campaign-editor-root grid gap-4 ${previewImageUrl !== undefined ? "lg:grid-cols-[1fr,minmax(320px,1fr)]" : ""} ${className}`}
     >
       <div className="flex flex-col gap-4 min-w-0">
-        <div className="flex gap-4">
-          <aside className="w-52 shrink-0 rounded-xl border border-[var(--card-border)] bg-[var(--surface-elevated)] p-3 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-dim)] mb-3 px-1">
-              Blocks
+        <div className="flex gap-5">
+          <aside className="w-56 shrink-0 rounded-2xl border border-(--card-border) bg-(--surface-elevated) p-4 shadow-sm">
+            <h3 className="text-sm font-semibold text-foreground mb-1 px-0.5">
+              Add blocks
+            </h3>
+            <p className="text-xs text-muted-dim mb-4 px-0.5">
+              Click to add or drag into the canvas
             </p>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {(Object.keys(BLOCK_DEFAULTS) as BlockType[]).map((type) => (
                 <button
                   key={type}
                   type="button"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("application/x-block-type", type);
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
+                  onDragEnd={() => setDropSlotIndex(null)}
                   onClick={() => addBlock(type)}
-                  className="flex items-center gap-2.5 w-full rounded-lg border border-[var(--card-border)] bg-[var(--surface)] px-3 py-2.5 text-left text-sm text-[var(--foreground)] hover:bg-[var(--surface-hover)] hover:border-[var(--accent)]/30 transition-colors"
+                  className="flex items-center gap-3 w-full rounded-xl border border-(--card-border) bg-(--surface) px-3 py-3 text-left text-sm text-foreground hover:bg-(--surface-hover) hover:border-(--accent)/40 transition-all duration-200 cursor-grab active:cursor-grabbing"
                 >
-                  <span className="text-[var(--muted-dim)]">
+                  <span className="text-muted-dim shrink-0">
                     {BLOCK_ICONS[type]}
                   </span>
-                  {BLOCK_LABELS[type]}
+                  <span className="font-medium">{BLOCK_LABELS[type]}</span>
                 </button>
               ))}
             </div>
-            <p className="text-[10px] text-[var(--muted-dim)] mt-3 px-1">
-              Drag blocks to reorder.
-            </p>
           </aside>
-          <div className="min-h-[320px] flex-1 rounded-xl border-2 border-dashed border-[var(--card-border)] bg-[var(--card-bg-subtle)] p-5">
+          <div className="min-h-[360px] flex-1 rounded-2xl border-2 border-dashed border-(--card-border) bg-(--card-bg-subtle) p-6 transition-colors duration-200">
             {blocks.length === 0 ? (
-              <div className="flex h-72 flex-col items-center justify-center text-center text-sm text-[var(--muted-dim)]">
-                <div className="rounded-full bg-[var(--surface-elevated)] p-4 mb-3 text-[var(--muted)]">
+              <div
+                className={`flex h-80 flex-col items-center justify-center text-center px-6 rounded-xl border-2 border-dashed transition-colors duration-200 ${
+                  dropSlotIndex === 0
+                    ? "border-(--accent) bg-(--accent)/5"
+                    : "border-(--card-border) bg-(--surface-elevated)/50"
+                }`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "copy";
+                  setDropSlotIndex(0);
+                }}
+                onDragLeave={handleDragLeaveSlot}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleDropOnSlot(e, 0);
+                }}
+              >
+                <div className="rounded-2xl bg-(--surface-elevated) p-5 mb-4 text-muted">
                   <svg
-                    className="h-10 w-10"
+                    className="h-12 w-12"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -603,61 +691,79 @@ export function CampaignBlockEditor({
                     />
                   </svg>
                 </div>
-                <p className="font-semibold text-[var(--muted)]">
+                <p className="font-semibold text-foreground text-base">
                   No blocks yet
                 </p>
-                <p className="mt-1 max-w-[240px]">
-                  Add a block from the palette. Drag to reorder, then edit each
-                  block.
+                <p className="mt-2 max-w-[280px] text-sm text-muted-dim">
+                  Drag blocks from the left into this area, or click a block type to add one. Reorder by dragging blocks.
                 </p>
               </div>
             ) : (
-              <ul className="space-y-4">
+              <ul className="space-y-0 list-none p-0 m-0">
                 {blocks.map((block, index) => (
-                  <li
-                    key={block.id}
-                    className="rounded-xl border border-[var(--card-border)] bg-[var(--surface)] overflow-hidden shadow-sm transition-shadow hover:shadow-md"
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      handleDrop(e, index);
-                    }}
-                  >
-                    <BlockRow
-                      block={block}
-                      index={index}
-                      total={blocks.length}
-                      onUpdate={(props) => updateBlock(block.id, props)}
-                      onRemove={() => removeBlock(block.id)}
-                      onMoveUp={() => moveBlock(block.id, "up")}
-                      onMoveDown={() => moveBlock(block.id, "down")}
-                      onDragStart={(e) =>
-                        e.dataTransfer.setData("text/plain", String(index))
-                      }
-                    />
-                  </li>
+                  <React.Fragment key={block.id}>
+                    <li
+                      className="rounded-xl transition-all duration-200"
+                      onDragOver={(e) => e.preventDefault()}
+                    >
+                      <DropSlot
+                        slotIndex={index}
+                        isActive={dropSlotIndex === index}
+                        onDragOver={handleDragOverSlot}
+                        onDragLeave={handleDragLeaveSlot}
+                        onDrop={handleDropOnSlot}
+                      />
+                    </li>
+                    <li
+                      key={block.id}
+                      className={`rounded-2xl border border-(--card-border) overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md hover:border-(--card-border) ${
+                        draggingBlockIndex === index
+                          ? "opacity-50 scale-[0.98] cursor-grabbing"
+                          : ""
+                      }`}
+                    >
+                      <BlockRow
+                        block={block}
+                        index={index}
+                        total={blocks.length}
+                        onUpdate={(props) => updateBlock(block.id, props)}
+                        onRemove={() => removeBlock(block.id)}
+                        onMoveUp={() => moveBlock(block.id, "up")}
+                        onMoveDown={() => moveBlock(block.id, "down")}
+                        onDragStart={(e) => handleDragStartBlock(e, index)}
+                        onDragEnd={handleDragEndBlock}
+                        isDragging={draggingBlockIndex === index}
+                      />
+                    </li>
+                  </React.Fragment>
                 ))}
+                <li className="rounded-xl">
+                  <DropSlot
+                    slotIndex={blocks.length}
+                    isActive={dropSlotIndex === blocks.length}
+                    onDragOver={handleDragOverSlot}
+                    onDragLeave={handleDragLeaveSlot}
+                    onDrop={handleDropOnSlot}
+                  />
+                </li>
               </ul>
             )}
           </div>
         </div>
       </div>
       {previewImageUrl !== undefined && (
-        <div className="lg:sticky lg:top-4 flex flex-col rounded-xl border border-[var(--card-border)] bg-[var(--surface-elevated)] overflow-hidden shadow-lg h-fit max-h-[calc(100vh-8rem)]">
-          <div className="px-4 py-3 border-b border-[var(--card-border)] bg-[var(--surface)] flex flex-wrap items-center justify-between gap-2">
+        <div className="lg:sticky lg:top-4 flex flex-col rounded-2xl border border-(--card-border) bg-(--surface-elevated) overflow-hidden shadow-lg h-fit max-h-[calc(100vh-8rem)]">
+          <div className="px-4 py-3 border-b border-(--card-border) bg-(--surface) flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-[var(--foreground)]">
+              <span className="text-sm font-semibold text-foreground">
                 Live preview
               </span>
-              <span className="text-[10px] uppercase tracking-wider text-[var(--muted-dim)] hidden sm:inline">
+              <span className="text-[10px] uppercase tracking-wider text-muted-dim hidden sm:inline">
                 Updates as you build
               </span>
             </div>
             <div
-              className="flex items-center gap-0.5 p-0.5 rounded-lg bg-[var(--card-bg-subtle)] border border-[var(--card-border)]"
+              className="flex items-center gap-0.5 p-0.5 rounded-lg bg-(--card-bg-subtle) border border-(--card-border)"
               role="group"
               aria-label="Preview size"
             >
@@ -670,7 +776,7 @@ export function CampaignBlockEditor({
                     type="button"
                     onClick={() => setPreviewViewport(v.id)}
                     title={`${v.label}${v.width ? ` (${v.width}px)` : ""}`}
-                    className={`p-2 rounded-md transition-colors ${active ? "bg-[var(--accent)] text-white shadow-sm" : "text-[var(--muted-dim)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)]"}`}
+                    className={`p-2 rounded-md transition-colors ${active ? "bg-(--accent) text-white shadow-sm" : "text-muted-dim hover:text-foreground hover:bg-(--surface-hover)"}`}
                   >
                     {v.icon === "phone" && (
                       <svg
@@ -758,9 +864,9 @@ export function CampaignBlockEditor({
               })}
             </div>
           </div>
-          <div className="flex-1 min-h-[400px] bg-[var(--card-bg-subtle)] overflow-auto p-4 flex justify-center">
+          <div className="flex-1 min-h-[400px] bg-(--card-bg-subtle) overflow-auto p-4 flex justify-center">
             <div
-              className="rounded-lg border border-[var(--card-border)] bg-[var(--surface)] shadow-inner overflow-hidden transition-all duration-200"
+              className="rounded-xl border border-(--card-border) bg-(--surface) shadow-inner overflow-hidden transition-all duration-200"
               style={{
                 width:
                   previewViewport === "full"
@@ -784,6 +890,37 @@ export function CampaignBlockEditor({
   );
 }
 
+function DropSlot({
+  slotIndex,
+  isActive,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+}: {
+  slotIndex: number;
+  isActive: boolean;
+  onDragOver: (e: React.DragEvent, i: number) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent, i: number) => void;
+}) {
+  return (
+    <div
+      className={`min-h-[12px] -my-1 rounded-lg transition-all duration-150 flex items-center justify-center ${
+        isActive
+          ? "min-h-[44px] bg-(--accent)/10 border-2 border-(--accent) border-dashed"
+          : "hover:min-h-[20px] hover:bg-(--card-bg-subtle)"
+      }`}
+      onDragOver={(e) => onDragOver(e, slotIndex)}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => onDrop(e, slotIndex)}
+    >
+      {isActive && (
+        <span className="text-xs font-medium text-(--accent)">Drop here</span>
+      )}
+    </div>
+  );
+}
+
 type BlockRowProps = {
   block: Block;
   index: number;
@@ -793,6 +930,8 @@ type BlockRowProps = {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onDragStart: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  isDragging?: boolean;
 };
 
 function BlockRow({
@@ -804,76 +943,51 @@ function BlockRow({
   onMoveUp,
   onMoveDown,
   onDragStart,
+  onDragEnd,
+  isDragging = false,
 }: BlockRowProps) {
   const [expanded, setExpanded] = useState(false);
-  const props = block.props;
+  const previewHtml = blockToHtml(block);
 
   return (
-    <div>
-      <div className="flex items-center gap-2 border-b border-[var(--card-border)] bg-[var(--surface-elevated)] px-3 py-2">
+    <div className="bg-(--surface)">
+      <div className="flex items-center gap-2 border-b border-(--card-border) bg-(--surface-elevated) px-3 py-2">
         <span
           draggable
           onDragStart={onDragStart}
-          className="cursor-grab touch-none text-[var(--muted-dim)] hover:text-[var(--muted)]"
+          onDragEnd={onDragEnd}
+          className={`touch-none text-muted-dim hover:text-muted transition-colors ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
           aria-label="Drag to reorder"
         >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 8h16M4 16h16"
-            />
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
           </svg>
         </span>
-        <span className="text-sm font-medium text-[var(--foreground)]">
+        <span className="text-xs font-medium text-muted-dim">
           {block.type === "section"
             ? `${BLOCK_LABELS[block.type]} · ${Math.min(3, Math.max(1, Number(block.props.columnCount) || 1))} col${Number(block.props.columnCount) === 2 || Number(block.props.columnCount) === 3 ? "s" : ""}`
             : BLOCK_LABELS[block.type]}
         </span>
-        <div className="ml-auto flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onMoveUp}
-            disabled={index === 0}
-            className="rounded p-1 text-[var(--muted-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)] disabled:opacity-40"
-            aria-label="Move up"
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            onClick={onMoveDown}
-            disabled={index === total - 1}
-            className="rounded p-1 text-[var(--muted-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)] disabled:opacity-40"
-            aria-label="Move down"
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            onClick={() => setExpanded(!expanded)}
-            className="rounded px-2 py-1 text-xs text-[var(--accent)] hover:underline"
-          >
-            {expanded ? "Collapse" : "Edit"}
-          </button>
-          <button
-            type="button"
-            onClick={onRemove}
-            className="rounded p-1 text-[var(--danger)] hover:bg-[var(--danger-muted)]"
-            aria-label="Remove"
-          >
-            ×
-          </button>
+        <div className="ml-auto flex items-center gap-0.5">
+          <button type="button" onClick={onMoveUp} disabled={index === 0} className="rounded p-1.5 text-muted-dim hover:bg-(--surface-hover) hover:text-foreground disabled:opacity-40 transition-colors" aria-label="Move up">↑</button>
+          <button type="button" onClick={onMoveDown} disabled={index === total - 1} className="rounded p-1.5 text-muted-dim hover:bg-(--surface-hover) hover:text-foreground disabled:opacity-40 transition-colors" aria-label="Move down">↓</button>
+          <button type="button" onClick={() => setExpanded(!expanded)} className="rounded px-2 py-1 text-xs text-(--accent) hover:underline">{expanded ? "Collapse" : "Edit"}</button>
+          <button type="button" onClick={onRemove} className="rounded p-1.5 text-danger hover:bg-(--danger-muted) transition-colors" aria-label="Remove">×</button>
+        </div>
+      </div>
+      <div className="min-h-[48px] bg-[#f4f3f6] p-4 flex justify-center">
+        <div
+          className="w-full max-w-[600px] mx-auto rounded-lg overflow-hidden border border-(--card-border) bg-white shadow-sm"
+          style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", fontSize: 16, lineHeight: 1.5, color: "#1f2937" }}
+        >
+          <div
+            className="campaign-block-preview pointer-events-none [&_a]:pointer-events-none"
+            dangerouslySetInnerHTML={{ __html: previewHtml || "<p style=\"padding: 1rem; color: #9ca3af; font-size: 0.875rem;\">Empty block</p>" }}
+          />
         </div>
       </div>
       {expanded && (
-        <div className="p-4 space-y-3">
+        <div className="p-4 border-t border-(--card-border) bg-(--surface-elevated) space-y-3">
           <BlockFields block={block} onUpdate={onUpdate} />
         </div>
       )}
@@ -889,7 +1003,7 @@ function AlignmentPicker({
   onChange: (a: Align) => void;
 }) {
   return (
-    <div className="inline-flex rounded-lg border border-[var(--card-border)] bg-[var(--surface)] p-0.5">
+    <div className="inline-flex rounded-lg border border-(--card-border) bg-(--surface) p-0.5">
       {(["left", "center", "right"] as const).map((a) => (
         <button
           key={a}
@@ -897,8 +1011,8 @@ function AlignmentPicker({
           onClick={() => onChange(a)}
           className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
             value === a
-              ? "bg-[var(--accent)] text-white"
-              : "text-[var(--muted-dim)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)]"
+              ? "bg-(--accent) text-white"
+              : "text-muted-dim hover:text-foreground hover:bg-(--surface-hover)"
           }`}
           title={
             a === "left"
@@ -996,6 +1110,21 @@ function BlockFields({
       return (
         <>
           <div>
+            <label className="field-label text-xs">Style</label>
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {NAVIGATION_STYLES.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => set("style", s.id)}
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium ${(props.style as string) === s.id ? "bg-(--accent) text-white" : "bg-(--surface) text-muted-dim hover:bg-(--surface-hover)"}`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
             <label className="field-label text-xs">Logo type</label>
             <div className="flex gap-2 mt-1">
               {(["text", "image"] as const).map((t) => (
@@ -1003,7 +1132,7 @@ function BlockFields({
                   key={t}
                   type="button"
                   onClick={() => set("logoType", t)}
-                  className={`px-3 py-1.5 rounded-md text-sm capitalize ${logoType === t ? "bg-[var(--accent)] text-white" : "bg-[var(--surface)] text-[var(--muted-dim)] hover:bg-[var(--surface-hover)]"}`}
+                  className={`px-3 py-1.5 rounded-md text-sm capitalize ${logoType === t ? "bg-(--accent) text-white" : "bg-(--surface) text-muted-dim hover:bg-(--surface-hover)"}`}
                 >
                   {t}
                 </button>
@@ -1047,12 +1176,12 @@ function BlockFields({
                       type="button"
                       onClick={() => navLogoInputRef.current?.click()}
                       disabled={navLogoUploading}
-                      className="shrink-0 rounded-lg border border-[var(--card-border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
+                      className="shrink-0 rounded-lg border border-(--card-border) bg-(--surface) px-3 py-1.5 text-sm text-foreground hover:bg-(--surface-hover) disabled:opacity-50"
                     >
                       {navLogoUploading ? "Uploading…" : "Import image"}
                     </button>
                   </div>
-                  <p className="text-[10px] text-[var(--muted-dim)] mt-0.5">
+                  <p className="text-[10px] text-muted-dim mt-0.5">
                     PNG, JPEG, GIF, WebP, or SVG
                   </p>
                 </div>
@@ -1102,7 +1231,7 @@ function BlockFields({
               className="input-glass w-full text-sm font-mono mt-1"
               placeholder="Home | https://..."
             />
-            <p className="text-[10px] text-[var(--muted-dim)] mt-1">
+            <p className="text-[10px] text-muted-dim mt-1">
               Links appear below the brand, separated by a dot. Leave URL blank
               for no link.
             </p>
@@ -1133,6 +1262,21 @@ function BlockFields({
       };
       return (
         <>
+          <div>
+            <label className="field-label text-xs">Style</label>
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {HERO_STYLES.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => set("style", s.id)}
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium ${(props.style as string) === s.id ? "bg-(--accent) text-white" : "bg-(--surface) text-muted-dim hover:bg-(--surface-hover)"}`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex items-end justify-between gap-4">
             <div className="flex-1 min-w-0">
               <label className="field-label text-xs">Heading</label>
@@ -1203,12 +1347,12 @@ function BlockFields({
                 type="button"
                 onClick={() => heroImageInputRef.current?.click()}
                 disabled={heroImageUploading}
-                className="shrink-0 rounded-lg border border-[var(--card-border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
+                className="shrink-0 rounded-lg border border-(--card-border) bg-(--surface) px-3 py-1.5 text-sm text-foreground hover:bg-(--surface-hover) disabled:opacity-50"
               >
                 {heroImageUploading ? "Uploading…" : "Import image"}
               </button>
             </div>
-            <p className="text-[10px] text-[var(--muted-dim)] mt-0.5">
+            <p className="text-[10px] text-muted-dim mt-0.5">
               PNG, JPEG, GIF, WebP, or SVG
             </p>
           </div>
@@ -1261,6 +1405,21 @@ function BlockFields({
     case "button":
       return (
         <>
+          <div>
+            <label className="field-label text-xs">Style</label>
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {BUTTON_STYLES.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => set("style", s.id)}
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium ${(props.style as string) === s.id ? "bg-(--accent) text-white" : "bg-(--surface) text-muted-dim hover:bg-(--surface-hover)"}`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex items-end justify-between gap-4">
             <div className="flex-1 min-w-0">
               <label className="field-label text-xs">Button text</label>
@@ -1334,14 +1493,31 @@ function BlockFields({
       );
     case "divider":
       return (
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-xs text-[var(--muted-dim)]">A horizontal line.</p>
+        <div className="space-y-3">
           <div>
-            <label className="field-label text-xs block mb-1.5">Align</label>
-            <AlignmentPicker
-              value={(props.align as Align) || "center"}
-              onChange={(a) => set("align", a)}
-            />
+            <label className="field-label text-xs">Style</label>
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {DIVIDER_STYLES.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => set("style", s.id)}
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium ${(props.style as string) === s.id ? "bg-(--accent) text-white" : "bg-(--surface) text-muted-dim hover:bg-(--surface-hover)"}`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs text-muted-dim">A horizontal line.</p>
+            <div>
+              <label className="field-label text-xs block mb-1.5">Align</label>
+              <AlignmentPicker
+                value={(props.align as Align) || "center"}
+                onChange={(a) => set("align", a)}
+              />
+            </div>
           </div>
         </div>
       );
@@ -1454,20 +1630,20 @@ function SectionColumnFields({
       </div>
       <div>
         <label className="field-label text-xs">Columns</label>
-        <div className="inline-flex gap-2 p-1 rounded-lg border border-[var(--card-border)] bg-[var(--surface)]">
+        <div className="inline-flex gap-2 p-1 rounded-lg border border-(--card-border) bg-(--surface)">
           {[1, 2, 3].map((n) => (
             <button
               key={n}
               type="button"
               onClick={() => onColumnCountChange(n)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${columnCount === n ? "bg-[var(--accent)] text-white" : "text-[var(--muted-dim)] hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)]"}`}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${columnCount === n ? "bg-(--accent) text-white" : "text-muted-dim hover:text-foreground hover:bg-(--surface-hover)"}`}
             >
               {n} col{n > 1 ? "s" : ""}
             </button>
           ))}
         </div>
       </div>
-      <div className="rounded-xl border-2 border-[var(--card-border)] overflow-hidden">
+      <div className="rounded-xl border-2 border-(--card-border) overflow-hidden">
         <div
           className="grid gap-0"
           style={{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }}
@@ -1475,9 +1651,9 @@ function SectionColumnFields({
           {list.map((col, index) => (
             <div
               key={index}
-              className="border-r last:border-r-0 border-[var(--card-border)] bg-[var(--surface-elevated)] p-4 min-h-[120px]"
+              className="border-r last:border-r-0 border-(--card-border) bg-(--surface-elevated) p-4 min-h-[120px]"
             >
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--accent)] mb-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-(--accent) mb-2">
                 Column {index + 1}
               </div>
               <input
@@ -1585,7 +1761,7 @@ function GalleryImageFields({
       {list.map((img, index) => (
         <div
           key={index}
-          className="rounded-lg border border-[var(--card-border)] bg-[var(--surface-elevated)] p-3 space-y-2"
+          className="rounded-lg border border-(--card-border) bg-(--surface-elevated) p-3 space-y-2"
         >
           <div className="flex items-center gap-2">
             <input
@@ -1608,7 +1784,7 @@ function GalleryImageFields({
               type="button"
               onClick={() => fileInputRefs.current[index]?.click()}
               disabled={uploadingIndex === index}
-              className="shrink-0 rounded-lg border border-[var(--card-border)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
+              className="shrink-0 rounded-lg border border-(--card-border) bg-(--surface) px-3 py-1.5 text-sm text-foreground hover:bg-(--surface-hover) disabled:opacity-50"
             >
               {uploadingIndex === index ? "Uploading…" : "Import image"}
             </button>
@@ -1630,7 +1806,7 @@ function GalleryImageFields({
             />
           </div>
           {img.src ? (
-            <div className="mt-2 rounded overflow-hidden border border-[var(--card-border)] inline-block max-w-[120px]">
+            <div className="mt-2 rounded overflow-hidden border border-(--card-border) inline-block max-w-[120px]">
               <img
                 src={img.src}
                 alt={img.alt}
@@ -1647,7 +1823,7 @@ function GalleryImageFields({
         <button
           type="button"
           onClick={() => onImagesChange(ensureLength(list, list.length + 1))}
-          className="text-sm text-[var(--accent)] hover:underline"
+          className="text-sm text-(--accent) hover:underline"
         >
           + Add another image
         </button>

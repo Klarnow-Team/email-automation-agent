@@ -48,6 +48,30 @@ class FormResponse(BaseModel):
         from_attributes = True
 
 
+class FormSubmissionResponse(BaseModel):
+    """One form submission for list endpoint."""
+    id: int
+    form_id: int
+    subscriber_id: Optional[int] = None
+    email: Optional[str] = None
+    name: Optional[str] = None
+    payload: dict
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class FormPublicResponse(BaseModel):
+    """Form config for public embed (no sensitive data)."""
+    id: int
+    name: str
+    form_type: str
+    fields: Optional[List[Any]] = None
+    success_message: Optional[str] = None
+    redirect_url: Optional[str] = None
+
+
 class FormSubmitPublic(BaseModel):
     """Payload for public form submission. Must include at least email; other keys match form fields."""
     email: str
