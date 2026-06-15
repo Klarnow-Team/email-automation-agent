@@ -1,5 +1,6 @@
 import enum
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -20,6 +21,7 @@ class Campaign(Base):
     channel = Column(String(16), default="email", nullable=False)  # email | whatsapp
     subject = Column(String(500), nullable=False)
     html_body = Column(Text, nullable=False)
+    builder_state = Column(JSONB, nullable=True)
     plain_body = Column(Text, nullable=True)  # optional plain-text version
     status = Column(Enum(CampaignStatus), default=CampaignStatus.draft, nullable=False)
     sent_at = Column(DateTime(timezone=True), nullable=True)

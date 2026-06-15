@@ -31,6 +31,33 @@ from app.services.activity_service import log_activity
 router = APIRouter()
 
 
+def _sanitize_custom_fields(custom_fields: dict[str, Any] | None) -> dict[str, str]:
+    sanitized: dict[str, str] = {}
+    for raw_key, raw_value in (custom_fields or {}).items():
+        key = str(raw_key).strip()
+        if not key:
+            continue
+        sanitized[key] = "" if raw_value is None else str(raw_value).strip()
+    return sanitized
+
+
+def _summarize_custom_field_changes(
+    previous: dict[str, str], current: dict[str, str]
+) -> dict[str, list[str]]:
+    previous_keys = set(previous.keys())
+    current_keys = set(current.keys())
+    changed_keys = sorted(
+        key
+        for key in previous_keys & current_keys
+        if previous.get(key) != current.get(key)
+    )
+    return {
+        "added": sorted(current_keys - previous_keys),
+        "removed": sorted(previous_keys - current_keys),
+        "updated": changed_keys,
+    }
+
+
 def _subscriber_to_response(s, group_ids=None, tag_ids=None):
     if group_ids is None:
         group_ids = []
@@ -247,15 +274,20 @@ def get_subscriber_stats(
 
 @router.post("", response_model=SubscriberResponse, status_code=201)
 def create_subscriber(body: SubscriberCreate, db: Session = Depends(get_db)):
-    existing = db.query(Subscriber).filter(Subscriber.email == body.email).first()
+    normalized_email = str(body.email).strip().lower()
+    existing = (
+        db.query(Subscriber)
+        .filter(func.lower(Subscriber.email) == normalized_email)
+        .first()
+    )
     if existing:
         raise HTTPException(status_code=400, detail="Subscriber with this email already exists")
     subscriber = Subscriber(
-        email=body.email,
+        email=normalized_email,
         name=body.name,
         phone=body.phone,
         status=SubscriberStatus.active,
-        custom_fields=body.custom_fields or {},
+        custom_fields=_sanitize_custom_fields(body.custom_fields),
     )
     db.add(subscriber)
     db.commit()
@@ -282,17 +314,68 @@ def update_subscriber(subscriber_id: int, body: SubscriberUpdate, db: Session = 
     subscriber = db.query(Subscriber).filter(Subscriber.id == subscriber_id).first()
     if not subscriber:
         raise HTTPException(status_code=404, detail="Subscriber not found")
-    if body.name is not None:
-        subscriber.name = body.name
-    if body.status is not None:
-        subscriber.status = SubscriberStatus(body.status)
-    if body.phone is not None:
-        subscriber.phone = body.phone
-    if body.custom_fields is not None:
-        subscriber.custom_fields = body.custom_fields
+    payload = body.model_dump(exclude_unset=True)
+    changed_fields: dict[str, Any] = {}
+    custom_fields_changed = False
+
+    if "email" in payload and payload["email"] is not None:
+        next_email = str(payload["email"]).strip().lower()
+        if next_email != subscriber.email:
+            existing = (
+                db.query(Subscriber)
+                .filter(func.lower(Subscriber.email) == next_email, Subscriber.id != subscriber_id)
+                .first()
+            )
+            if existing:
+                raise HTTPException(status_code=400, detail="Subscriber with this email already exists")
+            changed_fields["email"] = {"from": subscriber.email, "to": next_email}
+            subscriber.email = next_email
+
+    if "name" in payload and payload["name"] != subscriber.name:
+        changed_fields["name"] = {"from": subscriber.name, "to": payload["name"]}
+        subscriber.name = payload["name"]
+
+    if "status" in payload:
+        next_status = SubscriberStatus(payload["status"])
+        current_status = subscriber.status
+        if next_status != current_status:
+            changed_fields["status"] = {
+                "from": current_status.value if hasattr(current_status, "value") else str(current_status),
+                "to": next_status.value,
+            }
+            subscriber.status = next_status
+
+    if "phone" in payload and payload["phone"] != subscriber.phone:
+        changed_fields["phone"] = {"from": subscriber.phone, "to": payload["phone"]}
+        subscriber.phone = payload["phone"]
+
+    if "custom_fields" in payload:
+        previous_custom_fields = _sanitize_custom_fields(subscriber.custom_fields)
+        next_custom_fields = _sanitize_custom_fields(payload["custom_fields"])
+        if previous_custom_fields != next_custom_fields:
+            changed_fields["custom_fields"] = _summarize_custom_field_changes(
+                previous_custom_fields,
+                next_custom_fields,
+            )
+            subscriber.custom_fields = next_custom_fields
+            custom_fields_changed = True
     db.commit()
     db.refresh(subscriber)
-    if body.custom_fields is not None:
+
+    if changed_fields:
+        activity_payload = {"subscriber_id": subscriber.id, "changes": changed_fields}
+        event_emit(db, "subscriber.updated", activity_payload)
+        log_activity(db, "subscriber.updated", "subscriber", subscriber.id, {"changes": changed_fields})
+        db.add(
+            SubscriberActivity(
+                subscriber_id=subscriber.id,
+                event_type="subscriber.updated",
+                payload={"changes": changed_fields},
+            )
+        )
+        db.commit()
+
+    if custom_fields_changed:
         trigger_automations_for_field_updated(db, subscriber)
     group_map, tag_map = _get_group_tag_maps(db, [subscriber_id])
     return _subscriber_to_response(subscriber, group_map.get(subscriber_id, []), tag_map.get(subscriber_id, []))
@@ -432,7 +515,7 @@ def bulk_update_subscribers(body: SubscriberBulkUpdate, db: Session = Depends(ge
         if body.phone is not None:
             s.phone = body.phone
         if body.custom_fields is not None:
-            s.custom_fields = body.custom_fields
+            s.custom_fields = _sanitize_custom_fields(body.custom_fields)
     db.commit()
     return {"updated": len(updated)}
 
@@ -441,15 +524,20 @@ def bulk_update_subscribers(body: SubscriberBulkUpdate, db: Session = Depends(ge
 def import_subscribers(body: List[SubscriberImportItem], db: Session = Depends(get_db)):
     created = []
     for item in body:
-        existing = db.query(Subscriber).filter(Subscriber.email == item.email).first()
+        normalized_email = str(item.email).strip().lower()
+        existing = (
+            db.query(Subscriber)
+            .filter(func.lower(Subscriber.email) == normalized_email)
+            .first()
+        )
         if existing:
             continue
         subscriber = Subscriber(
-            email=item.email,
+            email=normalized_email,
             name=item.name,
             phone=item.phone,
             status=SubscriberStatus.active,
-            custom_fields=item.custom_fields or {},
+            custom_fields=_sanitize_custom_fields(item.custom_fields),
         )
         db.add(subscriber)
         db.commit()

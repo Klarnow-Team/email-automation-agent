@@ -3,70 +3,22 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { campaignsApi, dashboardApi, segmentsApi, type Campaign, type DashboardOverview, type Segment } from "@/lib/api";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
-import { Badge, Button, Modal } from "@/components/ui";
-import { CampaignBlockEditor, PREVIEW_VIEWPORTS, type PreviewViewportId } from "@/components/campaign-editor/CampaignBlockEditor";
+import { Button, Modal } from "@/components/ui";
+import {
+  buildEmailPreviewHtml,
+  builderStateToHtml,
+  CampaignBlockEditor,
+  createDefaultBuilderState,
+  normalizeBuilderState,
+  PREVIEW_VIEWPORTS,
+  syncBuilderStateWithHtml,
+  type CampaignBuilderState,
+  type PreviewViewportId,
+} from "@/components/campaign-editor/CampaignBlockEditor";
 
 type StatusFilter = "all" | "draft" | "sent";
 
 const PAGE_SIZE = 5;
-
-/** Build full email HTML for preview: same wrapper as backend + body with optional top image and sample {{name}}/{{email}}. */
-function buildEmailPreviewHtml(innerBody: string, imageUrl: string): string {
-  const trimmedImage = imageUrl.trim();
-  const bodyWithImage = trimmedImage
-    ? `<p><img src="${trimmedImage.replace(/"/g, "&quot;")}" alt="Image" style="max-width:100%; height:auto;" /></p>\n${innerBody}`
-    : innerBody;
-  const withPlaceholders = bodyWithImage
-    .replace(/\{\{name\}\}/g, "John")
-    .replace(/\{\{email\}\}/g, "john@example.com")
-    .replace(/\{\{id\}\}/g, "123")
-    .replace(/\{\{unsubscribe_url\}\}/g, "#");
-  const wrapper = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Preview</title>
-  <style>a{color:#6d5ee8;text-decoration:none;}a:hover{text-decoration:underline;}p{margin:0 0 1em;}p:last-child{margin-bottom:0;}h1,h2,h3{color:#141216;margin:0 0 0.5em;font-weight:600;}</style>
-</head>
-<body style="margin:0;padding:0;background:linear-gradient(180deg,#f0eef4 0%,#f4f3f6 100%);font-family:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;font-size:16px;line-height:1.6;color:#141216;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:transparent;">
-    <tr>
-      <td align="center" style="padding:40px 20px;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:0 auto;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.08),0 2px 8px rgba(0,0,0,0.04);background-color:#ffffff;border:1px solid #e8e6ec;">
-          <tr>
-            <td style="padding:24px 32px 32px;">
-              <div style="color:#141216;">
-${withPlaceholders}
-              </div>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:28px 32px 36px;border-top:1px solid #e8e6ec;background-color:#faf9fc;">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                <tr>
-                  <td style="width:50%;vertical-align:top;text-align:left;padding-right:24px;">
-                    <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:#141216;">Klarnow</p>
-                    <p style="margin:0 0 4px;font-size:13px;color:#6b6775;line-height:1.5;">Pendleton Way, Salford, Greater Manchester, M6 5FW</p>
-                    <p style="margin:0 0 12px;font-size:13px;color:#6b6775;line-height:1.5;">United Kingdom</p>
-                    <p style="margin:0;font-size:13px;color:#6b6775;"><a href="https://x.com/klarnow" style="color:#6d5ee8;text-decoration:none;">X</a> &nbsp; <a href="https://www.instagram.com/klarnow/" style="color:#6d5ee8;text-decoration:none;">Instagram</a> &nbsp; <a href="https://www.linkedin.com/company/klarnow/" style="color:#6d5ee8;text-decoration:none;">LinkedIn</a></p>
-                  </td>
-                  <td style="width:50%;vertical-align:top;text-align:right;">
-                    <p style="margin:0 0 12px;font-size:13px;color:#6b6775;line-height:1.5;">You received this email because you signed up on our website or made a purchase from us.</p>
-                    <p style="margin:0;"><a href="#" style="display:inline-block;padding:10px 20px;font-size:14px;font-weight:600;color:#ffffff;background-color:#6d5ee8;border-radius:8px;text-decoration:none;">Unsubscribe</a></p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
-  return wrapper;
-}
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -92,8 +44,10 @@ export default function CampaignsPage() {
   const [channel, setChannel] = useState<"email" | "whatsapp">("email");
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
   const [htmlBody, setHtmlBody] = useState("");
+  const [builderState, setBuilderState] = useState<CampaignBuilderState>(() =>
+    createDefaultBuilderState(),
+  );
   const [editorMode, setEditorMode] = useState<"simple" | "html">("simple");
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewViewport, setPreviewViewport] = useState<PreviewViewportId>("laptop");
@@ -165,23 +119,73 @@ export default function CampaignsPage() {
 
   useEffect(() => {
     mountedRef.current = true;
-    load();
+    const loadTimeout = window.setTimeout(() => {
+      load();
+    }, 0);
     return () => {
+      window.clearTimeout(loadTimeout);
       mountedRef.current = false;
     };
   }, [load]);
 
   useEffect(() => {
     if (sendConfirm) {
-      setSendSegmentId(null);
       segmentsApi.list().then(setSegments).catch(() => setSegments([]));
     }
   }, [sendConfirm]);
 
+  const resetEmailBuilder = React.useCallback(() => {
+    const nextBuilderState = createDefaultBuilderState();
+    setBuilderState(nextBuilderState);
+    setHtmlBody(builderStateToHtml(nextBuilderState));
+    setEditorMode("simple");
+  }, []);
+
+  const switchToSimpleEditor = React.useCallback(() => {
+    if (editorMode === "simple") return;
+    const syncedBuilder = syncBuilderStateWithHtml(builderState, htmlBody);
+    const rebuiltHtml = builderStateToHtml(syncedBuilder);
+    const currentHtml = (htmlBody || "").trim();
+    if (
+      currentHtml &&
+      currentHtml !== "<p></p>" &&
+      currentHtml !== rebuiltHtml.trim() &&
+      !window.confirm(
+        "Switching back to the builder will import your current HTML into a content block so the visual editor can keep working. Continue?",
+      )
+    ) {
+      return;
+    }
+    setBuilderState(syncedBuilder);
+    setHtmlBody(rebuiltHtml);
+    setEditorMode("simple");
+  }, [builderState, editorMode, htmlBody]);
+
+  const switchToHtmlEditor = React.useCallback(() => {
+    if (editorMode === "html") return;
+    if (
+      builderState.blocks.length > 0 &&
+      !window.confirm(
+        "HTML mode lets you edit the rendered markup directly. If you make manual HTML changes, they will be imported back into the builder as custom content when you return. Continue?",
+      )
+    ) {
+      return;
+    }
+    setEditorMode("html");
+  }, [builderState.blocks.length, editorMode]);
+
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (creating) return;
-    if (channel === "email" && !htmlBody.trim()) {
+    const syncedBuilderState =
+      channel === "email"
+        ? syncBuilderStateWithHtml(builderState, htmlBody)
+        : null;
+    const trimmedEmailHtml = htmlBody.trim();
+    if (
+      channel === "email" &&
+      (!trimmedEmailHtml || trimmedEmailHtml === "<p></p>")
+    ) {
       setError("Email body is required. Add at least one block in the Simple editor or enter HTML.");
       return;
     }
@@ -201,19 +205,13 @@ export default function CampaignsPage() {
     }
     setError(null);
     setCreating(true);
-    const trimmedImage = imageUrl.trim();
-    const bodyHtml =
-      channel === "email"
-        ? trimmedImage
-          ? `<p><img src="${trimmedImage.replace(/"/g, "&quot;")}" alt="Image" style="max-width:100%; height:auto;" /></p>\n${htmlBody}`
-          : htmlBody
-        : "";
     const payload: Parameters<typeof campaignsApi.create>[0] = {
       name,
       channel,
       subject: subject.trim() || (channel === "whatsapp" ? "WhatsApp broadcast" : "No subject"),
-      html_body: bodyHtml,
+      html_body: channel === "email" ? htmlBody : "",
     };
+    if (syncedBuilderState) payload.builder_state = syncedBuilderState;
     if (plainBody.trim()) payload.plain_body = plainBody.trim();
     if (scheduledAt.trim()) payload.scheduled_at = new Date(scheduledAt).toISOString();
     if (campaignType === "ab" && channel === "email" && abSubjectB.trim() && abHtmlBodyB.trim()) {
@@ -231,8 +229,7 @@ export default function CampaignsPage() {
           setName("");
           setSubject("");
           setChannel("email");
-          setImageUrl("");
-          setHtmlBody("");
+          resetEmailBuilder();
           setPlainBody("");
           setScheduledAt("");
           setAbSubjectB("");
@@ -253,6 +250,7 @@ export default function CampaignsPage() {
   const openSendConfirm = (c: Campaign) => {
     setError(null);
     setSuccessMessage(null);
+    setSendSegmentId(null);
     setSendConfirm({ id: c.id, name: c.name });
   };
 
@@ -287,16 +285,6 @@ export default function CampaignsPage() {
 
   const closeSendConfirm = () => setSendConfirm(null);
 
-  /** Parse stored html_body into optional top image URL and rest of body (same format as create). */
-  function parseHtmlBody(htmlBody: string): { imageUrl: string; body: string } {
-    const match = htmlBody.match(/^<p[^>]*>\s*<img[^>]+src="([^"]+)"[^>]*\s*\/?>[\s\S]*?<\/p>\s*\n?/i);
-    if (match) {
-      const url = match[1].replace(/&quot;/g, '"');
-      return { imageUrl: url, body: htmlBody.slice(match[0].length) };
-    }
-    return { imageUrl: "", body: htmlBody };
-  }
-
   const openEdit = (c: Campaign) => {
     if (c.status !== "draft") return;
     setError(null);
@@ -308,9 +296,13 @@ export default function CampaignsPage() {
         setName(full.name);
         setSubject(full.subject);
         setChannel((full as Campaign & { channel?: string }).channel === "whatsapp" ? "whatsapp" : "email");
-        const { imageUrl: parsedImage, body: parsedBody } = parseHtmlBody(full.html_body || "");
-        setImageUrl(parsedImage);
-        setHtmlBody(parsedBody);
+        const nextBuilderState = normalizeBuilderState(
+          full.builder_state,
+          full.html_body || "",
+        );
+        setBuilderState(nextBuilderState);
+        setHtmlBody(builderStateToHtml(nextBuilderState));
+        setEditorMode("simple");
         setPlainBody(full.plain_body || "");
         const isAb = !!(full.ab_subject_b?.trim() && full.ab_html_body_b?.trim());
         setCampaignType(isAb ? "ab" : "regular");
@@ -332,6 +324,7 @@ export default function CampaignsPage() {
     setEditingCampaign(null);
     setShowForm(false);
     setCampaignType(null);
+    resetEmailBuilder();
   };
 
   const handleSendConfirm = () => {
@@ -416,15 +409,15 @@ export default function CampaignsPage() {
   }, [list, statusFilter, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredList.length / PAGE_SIZE));
+  const safePage = Math.min(page, Math.max(0, totalPages - 1));
   const paginatedList = useMemo(
     () =>
-      filteredList.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE),
-    [filteredList, page],
+      filteredList.slice(
+        safePage * PAGE_SIZE,
+        safePage * PAGE_SIZE + PAGE_SIZE,
+      ),
+    [filteredList, safePage],
   );
-
-  useEffect(() => {
-    setPage((p) => Math.min(p, Math.max(0, totalPages - 1)));
-  }, [totalPages]);
 
   const sent = list.filter((c) => c.status === "sent").length;
   const drafts = list.filter((c) => c.status === "draft").length;
@@ -443,10 +436,12 @@ export default function CampaignsPage() {
               setCampaignType(null);
               setEditingCampaign(null);
               setCreating(false);
+              resetEmailBuilder();
             } else {
               setShowForm(true);
               setCampaignType(null);
               setEditingCampaign(null);
+              resetEmailBuilder();
             }
           }}
         >
@@ -458,7 +453,7 @@ export default function CampaignsPage() {
       <section className="rounded-xl border border-(--card-border) bg-(--card-bg-subtle) p-4 mb-4">
         <h2 className="text-sm font-semibold text-foreground mb-2">How campaigns work</h2>
         <ul className="text-sm text-muted space-y-1 list-disc list-inside">
-          <li><strong className="text-foreground">Create a draft</strong> — Add name, subject, optional image, and HTML body. Save as draft to edit later.</li>
+          <li><strong className="text-foreground">Create a draft</strong> — Add your campaign details, build the email with blocks or raw HTML, and save it to edit later.</li>
           <li><strong className="text-foreground">Send to subscribers</strong> — When ready, send the campaign to all active subscribers. Sending cannot be undone.</li>
           <li><strong className="text-foreground">Track results</strong> — Sent campaigns appear in your list; use the dashboard to see opens, clicks, and delivery.</li>
         </ul>
@@ -722,7 +717,10 @@ export default function CampaignsPage() {
           >
             <iframe
               title="Email preview"
-              srcDoc={buildEmailPreviewHtml(htmlBody.trim() || "<p><em>Add content in the editor to see a preview.</em></p>", imageUrl)}
+              srcDoc={buildEmailPreviewHtml(
+                htmlBody.trim() || "<p><em>Add content in the editor to see a preview.</em></p>",
+                builderState.template,
+              )}
               className="border-0 block w-full bg-white"
               style={{ minHeight: "420px", height: "70vh" }}
             />
@@ -863,76 +861,48 @@ export default function CampaignsPage() {
               />
             </div>
             <div>
-              <label className="field-label">Image URL (optional)</label>
-              <input
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                className="input-glass w-full max-w-md"
-                placeholder="https://example.com/image.jpg"
-              />
-              <p className="text-xs text-muted-dim mt-1">
-                Image will appear at the top of the email.
-              </p>
-              {imageUrl.trim() && (
-                <>
-                  <div className="mt-2 rounded-lg overflow-hidden border border-(--card-border) bg-(--surface) inline-block max-w-xs">
-                    <img
-                      src={imageUrl.trim()}
-                      alt="Preview"
-                      className="max-w-full h-auto max-h-40 object-contain"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setImageUrl("")}
-                    className="btn-ghost text-sm text-muted-dim hover:text-foreground mt-2"
-                  >
-                    Remove image
-                  </button>
-                </>
-              )}
-            </div>
-            <div>
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <label className="field-label mb-0">Email body</label>
                 <div className="flex items-center gap-2">
                   <div className="flex rounded-lg border border-(--card-border) p-0.5 bg-(--card-bg-subtle)">
                     <button
                       type="button"
-                      onClick={() => setEditorMode("simple")}
+                      onClick={switchToSimpleEditor}
                       className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${editorMode === "simple" ? "bg-(--surface) text-foreground shadow-sm" : "text-muted-dim hover:text-muted"}`}
                     >
                       Simple editor
                     </button>
                     <button
                       type="button"
-                      onClick={() => setEditorMode("html")}
+                      onClick={switchToHtmlEditor}
                       className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${editorMode === "html" ? "bg-(--surface) text-foreground shadow-sm" : "text-muted-dim hover:text-muted"}`}
                     >
                       HTML
                     </button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowPreviewModal(true)}
-                  >
-                    Preview
-                  </Button>
+                  {editorMode === "html" && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowPreviewModal(true)}
+                    >
+                      Preview
+                    </Button>
+                  )}
                 </div>
               </div>
               {editorMode === "simple" ? (
                 <CampaignBlockEditor
                   key={editingCampaign ? `edit-${editingCampaign.id}` : "new"}
                   value={htmlBody}
-                  onChange={setHtmlBody}
+                  builderState={builderState}
+                  onChange={({ html, builderState: nextBuilderState }) => {
+                    setHtmlBody(html);
+                    setBuilderState(nextBuilderState);
+                  }}
                   className="mt-2"
-                  previewImageUrl={imageUrl}
+                  onPreview={() => setShowPreviewModal(true)}
                 />
               ) : (
                 <textarea
@@ -1221,21 +1191,19 @@ export default function CampaignsPage() {
               <button
                 type="button"
                 className="dash-pagination-btn"
-                disabled={page === 0}
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={safePage === 0}
+                onClick={() => setPage(Math.max(0, safePage - 1))}
               >
                 Previous
               </button>
               <span className="dash-pagination-info">
-                Page {page + 1} of {totalPages}
+                Page {safePage + 1} of {totalPages}
               </span>
               <button
                 type="button"
                 className="dash-pagination-btn"
-                disabled={page >= totalPages - 1}
-                onClick={() =>
-                  setPage((p) => Math.min(totalPages - 1, p + 1))
-                }
+                disabled={safePage >= totalPages - 1}
+                onClick={() => setPage(Math.min(totalPages - 1, safePage + 1))}
               >
                 Next
               </button>

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -9,6 +9,7 @@ class CampaignCreate(BaseModel):
     channel: Optional[str] = "email"  # email | whatsapp
     subject: str
     html_body: Optional[str] = None  # required for email; can be empty for whatsapp
+    builder_state: Optional[Dict[str, Any]] = None
     plain_body: Optional[str] = None  # optional for email; message body for whatsapp
     scheduled_at: Optional[datetime] = None
     ab_subject_b: Optional[str] = None
@@ -22,6 +23,7 @@ class CampaignResponse(BaseModel):
     channel: Optional[str] = "email"
     subject: str
     html_body: str
+    builder_state: Optional[Dict[str, Any]] = None
     plain_body: Optional[str] = None
     status: str
     sent_at: Optional[datetime] = None
@@ -44,6 +46,7 @@ class CampaignUpdate(BaseModel):
     channel: Optional[str] = None
     subject: Optional[str] = None
     html_body: Optional[str] = None
+    builder_state: Optional[Dict[str, Any]] = None
     plain_body: Optional[str] = None
     scheduled_at: Optional[datetime] = None
     ab_subject_b: Optional[str] = None

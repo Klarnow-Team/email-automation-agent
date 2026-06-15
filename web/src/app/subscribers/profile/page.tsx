@@ -1,10 +1,38 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { subscribersApi, groupsApi, tagsApi, type SubscriberProfile, type Group, type Tag } from "@/lib/api";
-import { Badge, Button, Input, Modal } from "@/components/ui";
+import {
+  fieldsApi,
+  groupsApi,
+  subscribersApi,
+  tagsApi,
+  type Group,
+  type SubscriberField,
+  type SubscriberProfile,
+  type Tag,
+} from "@/lib/api";
+import { Badge, Button, Modal } from "@/components/ui";
+
+type EditableDefinedField = {
+  key: string;
+  title: string;
+  field_type: string;
+  value: string;
+};
+
+type EditableCustomField = {
+  key: string;
+  value: string;
+};
+
+type DisplayCustomField = {
+  key: string;
+  label: string;
+  value: string;
+  isDefined: boolean;
+};
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -35,15 +63,94 @@ function formatRelative(iso: string | null): string {
 
 function formatEventType(eventType: string): string {
   const map: Record<string, string> = {
+    "subscriber.created": "Subscriber added",
     subscriber_created: "Subscriber added",
+    "subscriber.updated": "Profile updated",
+    subscriber_updated: "Profile updated",
+    "subscriber.imported": "Imported",
     subscriber_imported: "Imported",
     unsubscribe: "Unsubscribed",
+    "campaign.sent": "Campaign sent",
     campaign_sent: "Campaign sent",
+    "form.submitted": "Form submitted",
     form_submitted: "Form submitted",
+    "automation.entered": "Entered automation",
     automation_entered: "Entered automation",
+    "automation.completed": "Automation completed",
     automation_completed: "Automation completed",
   };
-  return map[eventType] ?? eventType.replace(/_/g, " ");
+  return map[eventType] ?? eventType.replace(/[._]/g, " ");
+}
+
+function splitCustomFields(
+  customFields: Record<string, string> | null | undefined,
+  fieldDefinitions: SubscriberField[],
+): {
+  definedFields: EditableDefinedField[];
+  extraFields: EditableCustomField[];
+} {
+  const values = customFields ?? {};
+  const definedKeys = new Set(fieldDefinitions.map((field) => field.key));
+
+  return {
+    definedFields: fieldDefinitions.map((field) => ({
+      key: field.key,
+      title: field.title,
+      field_type: field.field_type,
+      value: values[field.key] != null ? String(values[field.key]) : "",
+    })),
+    extraFields: Object.entries(values)
+      .filter(([key, value]) => !definedKeys.has(key) && String(value ?? "").trim() !== "")
+      .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+      .map(([key, value]) => ({
+        key,
+        value: String(value ?? ""),
+      })),
+  };
+}
+
+function buildDisplayCustomFields(
+  customFields: Record<string, string> | null | undefined,
+  fieldDefinitions: SubscriberField[],
+): DisplayCustomField[] {
+  const values = customFields ?? {};
+  const definedFields = fieldDefinitions
+    .map((field) => ({
+      key: field.key,
+      label: field.title,
+      value: values[field.key] != null ? String(values[field.key]) : "",
+      isDefined: true,
+    }))
+    .filter((field) => field.value.trim() !== "");
+
+  const definedKeys = new Set(definedFields.map((field) => field.key));
+  const extraFields = Object.entries(values)
+    .filter(([key, value]) => !definedKeys.has(key) && String(value ?? "").trim() !== "")
+    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+    .map(([key, value]) => ({
+      key,
+      label: key,
+      value: String(value ?? ""),
+      isDefined: false,
+    }));
+
+  return [...definedFields, ...extraFields];
+}
+
+function getCustomFieldInputType(fieldType: string, value: string): string {
+  if (fieldType === "date") {
+    return value && !/^\d{4}-\d{2}-\d{2}$/.test(value) ? "text" : "date";
+  }
+  if (fieldType === "number") {
+    return value && Number.isNaN(Number(value)) ? "text" : "number";
+  }
+  return "text";
+}
+
+function getCustomFieldPlaceholder(fieldType: string): string {
+  if (fieldType === "date") return "YYYY-MM-DD";
+  if (fieldType === "number") return "0";
+  return "Enter a value";
 }
 
 function SubscriberProfilePageContent() {
@@ -52,6 +159,7 @@ function SubscriberProfilePageContent() {
   const id = idParam ? parseInt(idParam, 10) : null;
 
   const [profile, setProfile] = useState<SubscriberProfile | null>(null);
+  const [fieldDefinitions, setFieldDefinitions] = useState<SubscriberField[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,31 +169,53 @@ function SubscriberProfilePageContent() {
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const [editEmail, setEditEmail] = useState("");
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editStatus, setEditStatus] = useState<string>("active");
-  const [editCustomFields, setEditCustomFields] = useState<{ key: string; value: string }[]>([]);
+  const [editDefinedFields, setEditDefinedFields] = useState<EditableDefinedField[]>([]);
+  const [editExtraFields, setEditExtraFields] = useState<EditableCustomField[]>([]);
 
   useEffect(() => {
-    if (id == null || isNaN(id) || id < 1) {
-      setLoading(false);
-      setError("Invalid subscriber");
+    const subscriberId = id;
+    if (subscriberId == null || isNaN(subscriberId) || subscriberId < 1) {
       return;
     }
-    setLoading(true);
-    setError(null);
-    Promise.all([
-      subscribersApi.getProfile(id),
-      groupsApi.list(),
-      tagsApi.list(),
-    ])
-      .then(([p, g, t]) => {
-        setProfile(p);
-        setGroups(g);
-        setTags(t);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load profile"))
-      .finally(() => setLoading(false));
+    const validSubscriberId: number = subscriberId;
+    let cancelled = false;
+
+    async function loadProfile() {
+      setLoading(true);
+      setError(null);
+      try {
+        const [profileResult, groupsResult, tagsResult, fieldsResult] = await Promise.allSettled([
+          subscribersApi.getProfile(validSubscriberId),
+          groupsApi.list(),
+          tagsApi.list(),
+          fieldsApi.list(),
+        ]);
+        if (cancelled) return;
+        if (profileResult.status !== "fulfilled") {
+          throw profileResult.reason;
+        }
+        setProfile(profileResult.value);
+        setGroups(groupsResult.status === "fulfilled" ? groupsResult.value : []);
+        setTags(tagsResult.status === "fulfilled" ? tagsResult.value : []);
+        setFieldDefinitions(fieldsResult.status === "fulfilled" ? fieldsResult.value : []);
+      } catch (e) {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : "Failed to load profile");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadProfile();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   const openDeleteConfirm = () => setDeleteConfirmOpen(true);
@@ -107,32 +237,67 @@ function SubscriberProfilePageContent() {
   const openEdit = useCallback(() => {
     if (!profile) return;
     const s = profile.subscriber;
+    const { definedFields, extraFields } = splitCustomFields(s.custom_fields, fieldDefinitions);
+    setEditEmail(s.email ?? "");
     setEditName(s.name ?? "");
     setEditPhone(s.phone ?? "");
     setEditStatus(s.status ?? "active");
-    setEditCustomFields(
-      s.custom_fields && Object.keys(s.custom_fields).length > 0
-        ? Object.entries(s.custom_fields).map(([key, value]) => ({ key, value: String(value) }))
-        : [{ key: "", value: "" }]
-    );
+    setEditDefinedFields(definedFields);
+    setEditExtraFields(extraFields);
     setUpdateError(null);
     setEditOpen(true);
-  }, [profile]);
+  }, [fieldDefinitions, profile]);
 
   const handleSaveEdit = () => {
     if (!id) return;
+    const trimmedEmail = editEmail.trim();
+    if (!trimmedEmail) {
+      setUpdateError("Email is required.");
+      return;
+    }
+
+    const custom_fields: Record<string, string> = {};
+    const duplicateKeys = new Set<string>();
+
+    editDefinedFields.forEach(({ key, value }) => {
+      const normalizedValue = value.trim();
+      if (normalizedValue) {
+        custom_fields[key] = normalizedValue;
+      }
+    });
+
+    for (const { key, value } of editExtraFields) {
+      const normalizedKey = key.trim();
+      const normalizedValue = value.trim();
+      if (!normalizedKey && !normalizedValue) continue;
+      if (!normalizedKey) {
+        setUpdateError("Every custom field needs a name, or remove the empty row.");
+        return;
+      }
+      if (!normalizedValue) continue;
+      if (Object.prototype.hasOwnProperty.call(custom_fields, normalizedKey)) {
+        duplicateKeys.add(normalizedKey);
+        continue;
+      }
+      custom_fields[normalizedKey] = normalizedValue;
+    }
+
+    if (duplicateKeys.size > 0) {
+      setUpdateError(
+        `Duplicate custom field key${duplicateKeys.size > 1 ? "s" : ""}: ${Array.from(duplicateKeys).join(", ")}.`,
+      );
+      return;
+    }
+
     setSaving(true);
     setUpdateError(null);
-    const custom_fields: Record<string, string> = {};
-    editCustomFields.forEach(({ key, value }) => {
-      if (key.trim()) custom_fields[key.trim()] = value;
-    });
     subscribersApi
       .update(id, {
-        name: editName.trim() || undefined,
-        phone: editPhone.trim() || undefined,
+        email: trimmedEmail,
+        name: editName.trim() || null,
+        phone: editPhone.trim() || null,
         status: editStatus,
-        custom_fields: Object.keys(custom_fields).length > 0 ? custom_fields : undefined,
+        custom_fields,
       })
       .then(() => subscribersApi.getProfile(id))
       .then((updated) => {
@@ -143,12 +308,16 @@ function SubscriberProfilePageContent() {
       .finally(() => setSaving(false));
   };
 
-  const addCustomFieldRow = () => setEditCustomFields((prev) => [...prev, { key: "", value: "" }]);
+  const addCustomFieldRow = () => setEditExtraFields((prev) => [...prev, { key: "", value: "" }]);
   const removeCustomFieldRow = (index: number) =>
-    setEditCustomFields((prev) => prev.filter((_, i) => i !== index));
+    setEditExtraFields((prev) => prev.filter((_, i) => i !== index));
   const setCustomField = (index: number, field: "key" | "value", value: string) =>
-    setEditCustomFields((prev) =>
+    setEditExtraFields((prev) =>
       prev.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+    );
+  const setDefinedFieldValue = (key: string, value: string) =>
+    setEditDefinedFields((prev) =>
+      prev.map((field) => (field.key === key ? { ...field, value } : field))
     );
 
   if (id == null || isNaN(id) || id < 1) {
@@ -196,6 +365,7 @@ function SubscriberProfilePageContent() {
   const { subscriber, activity, campaigns_received, automation_runs, opens_count, clicks_count } = profile;
   const groupNames = (subscriber.group_ids ?? []).map((gid) => groups.find((g) => g.id === gid)?.name ?? `#${gid}`);
   const tagNames = (subscriber.tag_ids ?? []).map((tid) => tags.find((t) => t.id === tid)?.name ?? `#${tid}`);
+  const customFieldEntries = buildDisplayCustomFields(subscriber.custom_fields, fieldDefinitions);
 
   return (
     <div className="page-root subscribers-page">
@@ -304,29 +474,55 @@ function SubscriberProfilePageContent() {
               </div>
             )}
 
-            {/* Custom fields — minimal table */}
-            {subscriber.custom_fields && Object.keys(subscriber.custom_fields).length > 0 && (
-              <div className="mt-5 rounded-xl border border-[var(--card-border)] overflow-hidden">
-                <div className="border-b border-[var(--card-border)] bg-[var(--card-bg-subtle)]/50 px-4 py-2.5">
-                  <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-[var(--muted-dim)]">
-                    Custom fields
-                  </p>
+            <div className="mt-5 rounded-xl border border-[var(--card-border)] overflow-hidden">
+              <div className="flex items-center justify-between gap-3 border-b border-[var(--card-border)] bg-[var(--card-bg-subtle)]/50 px-4 py-2.5">
+                <p className="text-[0.6875rem] font-semibold uppercase tracking-wider text-[var(--muted-dim)]">
+                  Custom fields
+                </p>
+                <div className="flex items-center gap-3">
+                  <Link
+                    href="/subscribers?view=fields"
+                    className="text-xs font-medium text-[var(--accent)] hover:underline"
+                  >
+                    Manage fields
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={openEdit}
+                    className="text-xs font-medium text-[var(--accent)] hover:underline"
+                  >
+                    Edit
+                  </button>
                 </div>
+              </div>
+              {customFieldEntries.length === 0 ? (
+                <div className="px-4 py-4">
+                  <p className="text-sm text-muted">No custom fields added yet.</p>
+                  <Button variant="ghost" size="sm" onClick={openEdit} className="mt-3 text-[var(--accent)]">
+                    Add custom field
+                  </Button>
+                </div>
+              ) : (
                 <div className="divide-y divide-[var(--card-border)]">
-                  {Object.entries(subscriber.custom_fields).map(([k, v]) => (
+                  {customFieldEntries.map((field) => (
                     <div
-                      key={k}
+                      key={field.key}
                       className="flex items-center justify-between gap-4 px-4 py-3 text-sm"
                     >
-                      <span className="text-[var(--muted-dim)]">{k}</span>
-                      <span className="font-medium text-[var(--foreground)] truncate max-w-[60%] text-right">
-                        {String(v)}
+                      <div className="min-w-0">
+                        <p className="font-medium text-[var(--foreground)]">{field.label}</p>
+                        {field.isDefined && field.label !== field.key && (
+                          <p className="mt-1 font-mono text-xs text-[var(--muted-dim)]">{field.key}</p>
+                        )}
+                      </div>
+                      <span className="max-w-[60%] truncate text-right font-medium text-[var(--foreground)]">
+                        {field.value}
                       </span>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </section>
 
           <section className="section-card">
@@ -415,6 +611,191 @@ function SubscriberProfilePageContent() {
           </section>
         </div>
       </div>
+
+      <Modal
+        open={editOpen}
+        onClose={() => !saving && setEditOpen(false)}
+        title="Edit subscriber"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setEditOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="submit" form="subscriber-profile-edit-form" disabled={saving}>
+              {saving ? "Saving…" : "Save changes"}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="subscriber-profile-edit-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleSaveEdit();
+          }}
+          className="space-y-5"
+        >
+          {updateError && (
+            <div className="rounded-xl border border-[var(--danger)]/20 bg-[var(--danger)]/8 px-4 py-3 text-sm text-[var(--danger)]">
+              {updateError}
+            </div>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="field-label">Email</label>
+              <input
+                type="email"
+                value={editEmail}
+                onChange={(event) => setEditEmail(event.target.value)}
+                className="input-glass w-full"
+                placeholder="subscriber@example.com"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="field-label">Name</label>
+              <input
+                type="text"
+                value={editName}
+                onChange={(event) => setEditName(event.target.value)}
+                className="input-glass w-full"
+                placeholder="Subscriber name"
+              />
+            </div>
+
+            <div>
+              <label className="field-label">Phone</label>
+              <input
+                type="tel"
+                value={editPhone}
+                onChange={(event) => setEditPhone(event.target.value)}
+                className="input-glass w-full"
+                placeholder="+44 7000 000000"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="field-label">Status</label>
+              <select
+                value={editStatus}
+                onChange={(event) => setEditStatus(event.target.value)}
+                className="input-glass select-glass w-full"
+              >
+                <option value="active">Active</option>
+                <option value="unsubscribed">Unsubscribed</option>
+                <option value="bounced">Bounced</option>
+                <option value="suppressed">Suppressed</option>
+              </select>
+            </div>
+          </div>
+
+          <section className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Defined custom fields</h3>
+                <p className="text-xs text-muted-dim">
+                  Saved field definitions you can reuse across subscribers.
+                </p>
+              </div>
+              <Link
+                href="/subscribers?view=fields"
+                className="text-xs font-medium text-[var(--accent)] hover:underline"
+              >
+                Manage fields
+              </Link>
+            </div>
+
+            {editDefinedFields.length === 0 ? (
+              <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg-subtle)]/40 px-4 py-3 text-sm text-muted">
+                No field definitions yet. You can still add one-off fields below.
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {editDefinedFields.map((field) => (
+                  <div key={field.key}>
+                    <label className="field-label">
+                      {field.title}
+                      <span className="ml-1 font-mono text-[0.6875rem] text-[var(--muted-dim)]">
+                        {field.key}
+                      </span>
+                    </label>
+                    <input
+                      type={getCustomFieldInputType(field.field_type, field.value)}
+                      value={field.value}
+                      onChange={(event) => setDefinedFieldValue(field.key, event.target.value)}
+                      className="input-glass w-full"
+                      placeholder={getCustomFieldPlaceholder(field.field_type)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Additional custom fields</h3>
+                <p className="text-xs text-muted-dim">
+                  Add one-off fields directly on this subscriber profile.
+                </p>
+              </div>
+              <Button type="button" variant="secondary" size="sm" onClick={addCustomFieldRow}>
+                Add field
+              </Button>
+            </div>
+
+            {editExtraFields.length === 0 ? (
+              <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg-subtle)]/40 px-4 py-3 text-sm text-muted">
+                No extra custom fields added.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {editExtraFields.map((field, index) => (
+                  <div
+                    key={`${field.key}-${index}`}
+                    className="grid gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg-subtle)]/30 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+                  >
+                    <div>
+                      <label className="field-label">Field key</label>
+                      <input
+                        type="text"
+                        value={field.key}
+                        onChange={(event) => setCustomField(index, "key", event.target.value)}
+                        className="input-glass w-full"
+                        placeholder="e.g. favorite_channel"
+                      />
+                    </div>
+                    <div>
+                      <label className="field-label">Value</label>
+                      <input
+                        type="text"
+                        value={field.value}
+                        onChange={(event) => setCustomField(index, "value", event.target.value)}
+                        className="input-glass w-full"
+                        placeholder="Enter a value"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeCustomFieldRow(index)}
+                        className="text-[var(--danger)]"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </form>
+      </Modal>
 
       {/* Delete confirmation */}
       <Modal

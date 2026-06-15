@@ -10,7 +10,7 @@ const FIELD_TYPES = [
   { value: "date", label: "Date" },
 ] as const;
 
-export function FieldsContent() {
+function FieldsContent() {
   const [list, setList] = useState<SubscriberField[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

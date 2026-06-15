@@ -1,4 +1,5 @@
 import uuid
+from copy import deepcopy
 from pathlib import Path
 from typing import List
 
@@ -93,6 +94,7 @@ def create_campaign(body: CampaignCreate, db: Session = Depends(get_db)):
         channel=channel,
         subject=body.subject,
         html_body=html_body,
+        builder_state=body.builder_state,
         plain_body=body.plain_body,
         scheduled_at=body.scheduled_at,
         ab_subject_b=body.ab_subject_b,
@@ -119,6 +121,8 @@ def update_campaign(campaign_id: int, body: CampaignUpdate, db: Session = Depend
         campaign.subject = body.subject
     if body.html_body is not None:
         campaign.html_body = body.html_body
+    if "builder_state" in body.model_fields_set:
+        campaign.builder_state = body.builder_state
     if body.plain_body is not None:
         campaign.plain_body = body.plain_body
     if body.scheduled_at is not None:
@@ -189,6 +193,7 @@ def duplicate_campaign(campaign_id: int, db: Session = Depends(get_db)):
         name=f"{campaign.name} (copy)",
         subject=campaign.subject,
         html_body=campaign.html_body,
+        builder_state=deepcopy(getattr(campaign, "builder_state", None)),
         plain_body=getattr(campaign, "plain_body", None),
         scheduled_at=None,
         ab_subject_b=getattr(campaign, "ab_subject_b", None),

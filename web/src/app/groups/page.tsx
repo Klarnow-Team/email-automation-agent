@@ -74,7 +74,7 @@ function EntityStatRow({
   );
 }
 
-export function GroupsContent() {
+function GroupsContent() {
   const [list, setList] = useState<Group[]>([]);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [loading, setLoading] = useState(true);

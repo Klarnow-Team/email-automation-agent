@@ -198,7 +198,7 @@ function RulePills({ rules }: { rules: SegmentRule[] }) {
   );
 }
 
-export function SegmentsContent() {
+function SegmentsContent() {
   const [list, setList] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

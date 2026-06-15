@@ -7,9 +7,9 @@ import { useSearchParams } from "next/navigation";
 import { subscribersApi, groupsApi, type Subscriber, type SubscriberStats } from "@/lib/api";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { Badge, Button, Input, Modal } from "@/components/ui";
-import { SegmentsContent } from "@/app/segments/page";
-import { GroupsContent } from "@/app/groups/page";
-import { FieldsContent } from "@/app/fields/page";
+import SegmentsPage from "@/app/segments/page";
+import GroupsPage from "@/app/groups/page";
+import FieldsPage from "@/app/fields/page";
 import { useChartTheme } from "@/hooks/useChartTheme";
 
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
@@ -651,9 +651,9 @@ function SubscribersPageInner() {
   ).length;
   const withName = list.filter((s) => s.name && s.name.trim()).length;
 
-  if (view === "segments") return <SegmentsContent />;
-  if (view === "groups") return <GroupsContent />;
-  if (view === "fields") return <FieldsContent />;
+  if (view === "segments") return <SegmentsPage />;
+  if (view === "groups") return <GroupsPage />;
+  if (view === "fields") return <FieldsPage />;
   if (view === "stats") return <StatsContent />;
   if (view === "clean-up-inactive") return <PlaceholderView title="Clean up inactive" />;
   if (view === "history") return <PlaceholderView title="History" />;

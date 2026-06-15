@@ -79,12 +79,21 @@ export type SubscriberProfile = {
   clicks_count: number;
 };
 
+export type SubscriberUpdateBody = {
+  email?: string;
+  name?: string | null;
+  status?: string;
+  phone?: string | null;
+  custom_fields?: Record<string, string>;
+};
+
 export type Campaign = {
   id: number;
   name: string;
   channel?: string;
   subject: string;
   html_body: string;
+  builder_state?: Record<string, unknown> | null;
   plain_body?: string | null;
   status: string;
   sent_at: string | null;
@@ -104,6 +113,7 @@ export type CampaignCreateBody = {
   channel?: string;
   subject: string;
   html_body?: string | null;
+  builder_state?: Record<string, unknown> | null;
   plain_body?: string | null;
   scheduled_at?: string | null;
   ab_subject_b?: string | null;
@@ -165,7 +175,7 @@ export const subscribersApi = {
       body: JSON.stringify(body),
     }),
   get: (id: number) => api<Subscriber>(`/api/subscribers/${id}`),
-  update: (id: number, body: { name?: string; status?: string; phone?: string; custom_fields?: Record<string, string> }) =>
+  update: (id: number, body: SubscriberUpdateBody) =>
     api<Subscriber>(`/api/subscribers/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),

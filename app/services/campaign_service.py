@@ -158,6 +158,10 @@ def send_campaign(
     settings = get_settings()
     base_url = (settings.tracking_base_url or "").strip()
     secret = settings.tracking_secret or ""
+    builder_state = getattr(campaign, "builder_state", None)
+    template_settings = None
+    if isinstance(builder_state, dict):
+        template_settings = builder_state.get("template")
 
     use_ab = (
         campaign.ab_split_percent
@@ -173,11 +177,17 @@ def send_campaign(
         if use_ab and random.random() < split_b:
             variant = "b"
             subject = _personalize(campaign.ab_subject_b, s)
-            raw_html = wrap_transactional_html(campaign.ab_html_body_b)
+            raw_html = wrap_transactional_html(
+                campaign.ab_html_body_b,
+                template_settings=template_settings,
+            )
         else:
             variant = "a" if use_ab else None
             subject = _personalize(campaign.subject, s)
-            raw_html = wrap_transactional_html(campaign.html_body)
+            raw_html = wrap_transactional_html(
+                campaign.html_body,
+                template_settings=template_settings,
+            )
         unsubscribe_url = build_unsubscribe_url(base_url, secret, s.id) if base_url else "#"
         html = _personalize(raw_html, s, extra={unsubscribe_url_placeholder: unsubscribe_url})
         # Rewrite image URLs (localhost, /uploads/) to public base so images load for recipients

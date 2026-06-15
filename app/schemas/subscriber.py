@@ -12,8 +12,9 @@ class SubscriberCreate(BaseModel):
 
 
 class SubscriberUpdate(BaseModel):
+    email: Optional[EmailStr] = None
     name: Optional[str] = None
-    status: Optional[str] = None  # active | unsubscribed
+    status: Optional[str] = None  # active | unsubscribed | bounced | suppressed
     phone: Optional[str] = None
     custom_fields: Optional[Dict[str, str]] = None
 
